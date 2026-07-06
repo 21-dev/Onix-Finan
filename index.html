@@ -10,6 +10,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     
     <script>
         tailwind.config = {
@@ -52,7 +53,7 @@
                 <i data-lucide="wallet-cards" class="w-6 h-6"></i>
             </div>
             <h1 class="text-3xl font-extrabold tracking-tight text-white">Onix Finan</h1>
-            <p class="text-sm text-zinc-400 mt-2">Entre com seu e-mail ou crie um perfil para manter dados financeiros separados neste navegador.</p>
+            <p class="text-sm text-zinc-400 mt-2">Entre com seu e-mail ou crie uma conta para sincronizar seus dados pelo Supabase.</p>
         </div>
 
         <div class="relative z-10 flex bg-zinc-900/50 p-1 rounded-xl border border-zinc-800/50 mb-5">
@@ -64,14 +65,14 @@
             <input type="email" id="login-email" required placeholder="voce@email.com" class="w-full bg-surface border border-borderMain rounded-xl py-3 px-4 text-white text-sm focus:border-brand-yellow outline-none">
             <input type="password" id="login-senha" required placeholder="Senha" class="w-full bg-surface border border-borderMain rounded-xl py-3 px-4 text-white text-sm focus:border-brand-yellow outline-none">
             <button class="w-full bg-brand-yellow hover:bg-brand-yellowHover text-black font-bold py-3.5 rounded-xl transition-all active:scale-95">Entrar</button>
-            <button type="button" onclick="recuperarSenha()" class="w-full text-xs font-bold text-zinc-400 hover:text-brand-yellow transition-colors">Esqueci a senha</button>
+            <button type="button" onclick="recuperarSenha()" class="w-full text-xs font-bold text-zinc-400 hover:text-brand-yellow transition-colors">Enviar link de recuperacao</button>
         </form>
 
         <form id="form-cadastro-usuario" onsubmit="cadastrarUsuario(event)" class="relative z-10 hidden space-y-4 overflow-y-auto pb-4">
             <div class="grid grid-cols-2 gap-3">
                 <input id="cad-nome" required placeholder="Nome completo" class="col-span-2 bg-surface border border-borderMain rounded-xl py-3 px-4 text-white text-sm outline-none focus:border-brand-yellow">
                 <input id="cad-email" required type="email" placeholder="E-mail" class="col-span-2 bg-surface border border-borderMain rounded-xl py-3 px-4 text-white text-sm outline-none focus:border-brand-yellow">
-                <input id="cad-senha" required type="password" minlength="4" placeholder="Senha" class="col-span-2 bg-surface border border-borderMain rounded-xl py-3 px-4 text-white text-sm outline-none focus:border-brand-yellow">
+                <input id="cad-senha" required type="password" minlength="6" placeholder="Senha" class="col-span-2 bg-surface border border-borderMain rounded-xl py-3 px-4 text-white text-sm outline-none focus:border-brand-yellow">
                 <input id="cad-telefone" placeholder="Telefone" class="bg-surface border border-borderMain rounded-xl py-3 px-4 text-white text-sm outline-none focus:border-brand-yellow">
                 <input id="cad-nascimento" type="date" class="bg-surface border border-borderMain rounded-xl py-3 px-4 text-white text-sm outline-none focus:border-brand-yellow [&::-webkit-calendar-picker-indicator]:invert-[0.8]">
                 <input id="cad-cargo" placeholder="Cargo/profissao" class="col-span-2 bg-surface border border-borderMain rounded-xl py-3 px-4 text-white text-sm outline-none focus:border-brand-yellow">
@@ -427,8 +428,12 @@
                     </div>
                 </div>
                 <div class="bg-surfaceHover border border-borderMain rounded-xl p-4">
-                    <p class="text-sm font-bold text-white mb-1">Proximo passo: Supabase</p>
-                    <p class="text-xs text-zinc-500">O app ja centraliza os dados em objetos exportaveis. Com URL e anon key do Supabase, da para trocar o localStorage por sincronizacao em nuvem.</p>
+                    <p class="text-sm font-bold text-white mb-1">Supabase</p>
+                    <p id="supabase-status" class="text-xs text-zinc-500 mb-3">Configure a URL e anon key no codigo para ativar sincronizacao em nuvem.</p>
+                    <div class="grid grid-cols-2 gap-3">
+                        <button onclick="sincronizarSupabaseAgora()" class="bg-surface text-zinc-200 font-bold py-2.5 rounded-xl text-sm border border-borderMain">Sincronizar</button>
+                        <button onclick="baixarSupabaseAgora()" class="bg-surface text-zinc-200 font-bold py-2.5 rounded-xl text-sm border border-borderMain">Baixar nuvem</button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -470,11 +475,147 @@
         let registoEmEdicao = null;
         let itemExcluidoRecentemente = null;
         let timeoutUndo = null;
+        let supabaseClient = null;
+        let supabaseSyncTimer = null;
+
+        // Supabase: cole aqui os dados do seu projeto.
+        const SUPABASE_URL = 'https://dlsszwdqxbpeadvdyuyz.supabase.co/rest/v1/';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRsc3N6d2RxeGJwZWFkdmR5dXl6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMzMDkxNzUsImV4cCI6MjA5ODg4NTE3NX0.TBNVYNcus8B7tCwI98oUVLHWcZ7M0GLqHa-MB1COfq8';
+        const SUPABASE_TABLE = 'onix_finance_state';
+        const SUPABASE_REDIRECT_URL = window.location.href.split('#')[0];
 
         // Usuários e sessão local
         const normalizarEmail = (email) => (email || '').trim().toLowerCase();
         const criarIdUsuario = (email) => normalizarEmail(email).replace(/[^a-z0-9]+/g, '_');
         const chaveUsuario = (sufixo) => `${sufixo}_${usuarioAtual?.id || 'anon'}`;
+
+        function supabaseConfigurado() {
+            return SUPABASE_URL.startsWith('https://') && SUPABASE_ANON_KEY.length > 40;
+        }
+
+        function getSupabaseClient() {
+            if(!supabaseConfigurado() || !window.supabase) return null;
+            if(!supabaseClient) supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+            return supabaseClient;
+        }
+
+        function exigirSupabaseConfigurado() {
+            if(getSupabaseClient()) return true;
+            atualizarStatusSupabase('Configure a URL e anon key no codigo para ativar o Supabase Auth.', 'erro');
+            showToast('Configure o Supabase antes de entrar.');
+            return false;
+        }
+
+        function atualizarStatusSupabase(mensagem, tipo = 'neutro') {
+            const el = document.getElementById('supabase-status');
+            if(!el) return;
+            el.textContent = mensagem;
+            el.className = `text-xs mb-3 ${tipo === 'ok' ? 'text-emerald-400' : tipo === 'erro' ? 'text-rose-400' : 'text-zinc-500'}`;
+        }
+
+        function montarPayloadUsuario() {
+            return {
+                versao: 2,
+                atualizadoEm: new Date().toISOString(),
+                usuario: { ...usuarioAtual, senha: undefined },
+                despesas,
+                cartoes,
+                metas
+            };
+        }
+
+        function aplicarPayloadUsuario(payload) {
+            if(!payload) return false;
+            if(payload.usuario) {
+                usuarioAtual = { ...usuarioAtual, ...payload.usuario, id: usuarioAtual.id };
+            }
+            despesas = Array.isArray(payload.despesas) ? payload.despesas : despesas;
+            cartoes = Array.isArray(payload.cartoes) ? payload.cartoes : cartoes;
+            metas = payload.metas || metas;
+            metas.limitesCategoria = metas.limitesCategoria || {};
+            localStorage.setItem(chaveUsuario('finances_data_v2'), JSON.stringify(despesas));
+            localStorage.setItem(chaveUsuario('finances_cards_v1'), JSON.stringify(cartoes));
+            localStorage.setItem(chaveUsuario('finances_goals_v1'), JSON.stringify(metas));
+            return true;
+        }
+
+        async function buscarRegistroSupabase(userId) {
+            const client = getSupabaseClient();
+            if(!client) return null;
+            const { data, error } = await client
+                .from(SUPABASE_TABLE)
+                .select('payload')
+                .eq('user_id', userId)
+                .maybeSingle();
+            if(error) throw error;
+            return data?.payload || null;
+        }
+
+        async function salvarRegistroSupabase(userId, payload) {
+            const client = getSupabaseClient();
+            if(!client) return false;
+            const { error } = await client
+                .from(SUPABASE_TABLE)
+                .upsert({
+                    user_id: userId,
+                    payload,
+                    updated_at: new Date().toISOString()
+                }, { onConflict: 'user_id' });
+            if(error) throw error;
+            return true;
+        }
+
+        async function carregarEstadoUsuarioSupabase() {
+            if(!usuarioAtual || !getSupabaseClient()) return false;
+            try {
+                const payload = await buscarRegistroSupabase(usuarioAtual.id);
+                const aplicado = aplicarPayloadUsuario(payload);
+                if(aplicado) atualizarStatusSupabase('Dados carregados do Supabase.', 'ok');
+                return aplicado;
+            } catch (error) {
+                console.error('Erro ao carregar dados do Supabase:', error);
+                atualizarStatusSupabase('Usando dados locais. Falha ao baixar nuvem.', 'erro');
+                return false;
+            }
+        }
+
+        function agendarSyncSupabase() {
+            if(!getSupabaseClient()) return;
+            clearTimeout(supabaseSyncTimer);
+            supabaseSyncTimer = setTimeout(() => sincronizarSupabaseAgora(true), 800);
+        }
+
+        async function sincronizarSupabaseAgora(silencioso = false) {
+            if(!getSupabaseClient()) {
+                atualizarStatusSupabase('Configure a URL e anon key no codigo para ativar sincronizacao em nuvem.');
+                if(!silencioso) showToast('Supabase ainda nao configurado.');
+                return false;
+            }
+            try {
+                if(usuarioAtual) await salvarRegistroSupabase(usuarioAtual.id, montarPayloadUsuario());
+                atualizarStatusSupabase('Sincronizado com Supabase.', 'ok');
+                if(!silencioso) showToast('Dados enviados para o Supabase!');
+                return true;
+            } catch (error) {
+                console.error('Erro ao sincronizar Supabase:', error);
+                atualizarStatusSupabase('Falha ao sincronizar com Supabase.', 'erro');
+                if(!silencioso) showToast('Falha ao sincronizar Supabase.');
+                return false;
+            }
+        }
+
+        async function baixarSupabaseAgora() {
+            const estadoOk = await carregarEstadoUsuarioSupabase();
+            if(estadoOk) {
+                atualizarCabecalhoUsuario();
+                atualizarOpcoesCartoes();
+                renderizarDashboard();
+                if(!document.getElementById('modal-gestao-sheet').classList.contains('translate-y-full')) trocarAbaGestao(abaGestaoAtual);
+                showToast('Dados baixados do Supabase!');
+            } else {
+                showToast('Nada foi baixado do Supabase.');
+            }
+        }
 
         function carregarUsuarios() {
             usuarios = JSON.parse(localStorage.getItem('finances_users_v1') || '[]');
@@ -482,6 +623,33 @@
 
         function salvarUsuarios() {
             localStorage.setItem('finances_users_v1', JSON.stringify(usuarios));
+            agendarSyncSupabase();
+        }
+
+        function perfilDeAuthUser(user, fallback = {}) {
+            const meta = user?.user_metadata || {};
+            return {
+                ...fallback,
+                id: user.id,
+                nome: meta.nome || fallback.nome || user.email?.split('@')[0] || 'Usuario',
+                email: user.email || fallback.email || '',
+                telefone: meta.telefone || fallback.telefone || '',
+                nascimento: meta.nascimento || fallback.nascimento || '',
+                cargo: meta.cargo || fallback.cargo || '',
+                salario: Number(meta.salario ?? fallback.salario ?? 0),
+                diaPagamento: Number(meta.diaPagamento ?? fallback.diaPagamento ?? 5),
+                diaAdiantamento: meta.diaAdiantamento || fallback.diaAdiantamento || null,
+                metaEconomia: Number(meta.metaEconomia ?? fallback.metaEconomia ?? 0),
+                avatar: meta.avatar || fallback.avatar || '',
+                cidade: meta.cidade || fallback.cidade || '',
+                estado: meta.estado || fallback.estado || '',
+                moeda: meta.moeda || fallback.moeda || 'BRL'
+            };
+        }
+
+        function dadosPerfilAuth(perfil) {
+            const { id, email, senha, ...dados } = perfil;
+            return dados;
         }
 
         function setAuthMode(modo) {
@@ -524,42 +692,58 @@
             };
         }
 
-        function cadastrarUsuario(event) {
+        async function cadastrarUsuario(event) {
             event.preventDefault();
+            if(!exigirSupabaseConfigurado()) return;
             const perfil = lerPerfilCadastro('cad');
             if(!perfil.email || !perfil.nome) { showToast('Nome e e-mail sao obrigatorios.'); return; }
-            if(!perfil.senha || perfil.senha.length < 4) { showToast('Informe uma senha com pelo menos 4 caracteres.'); return; }
-            if(usuarios.some(u => u.email === perfil.email)) { showToast('Este e-mail ja tem cadastro.'); return; }
-            usuarios.push(perfil);
-            salvarUsuarios();
-            localStorage.setItem('finances_current_user_v1', perfil.id);
-            usuarioAtual = perfil;
-            iniciarAppUsuario();
+            if(!perfil.senha || perfil.senha.length < 6) { showToast('Informe uma senha com pelo menos 6 caracteres.'); return; }
+            const client = getSupabaseClient();
+            const { data, error } = await client.auth.signUp({
+                email: perfil.email,
+                password: perfil.senha,
+                options: {
+                    data: dadosPerfilAuth(perfil),
+                    emailRedirectTo: SUPABASE_REDIRECT_URL
+                }
+            });
+            if(error) { showToast(error.message || 'Nao foi possivel criar a conta.'); return; }
+            if(!data.session) {
+                showToast('Conta criada. Confira seu e-mail para confirmar o acesso.');
+                setAuthMode('login');
+                return;
+            }
+            usuarioAtual = perfilDeAuthUser(data.user, perfil);
+            localStorage.setItem('finances_current_user_v1', usuarioAtual.id);
+            await salvarRegistroSupabase(usuarioAtual.id, montarPayloadUsuario());
+            await iniciarAppUsuario();
         }
 
-        function entrarUsuario(event) {
+        async function entrarUsuario(event) {
             event.preventDefault();
+            if(!exigirSupabaseConfigurado()) return;
             const email = normalizarEmail(document.getElementById('login-email').value);
             const senha = document.getElementById('login-senha').value.trim();
-            const usuario = usuarios.find(u => u.email === email);
-            if(!usuario) { showToast('Usuario nao encontrado. Cadastre um novo perfil.'); return; }
-            if(usuario.senha && usuario.senha !== senha) { showToast('Senha incorreta.'); return; }
-            usuarioAtual = usuario;
-            localStorage.setItem('finances_current_user_v1', usuario.id);
-            iniciarAppUsuario();
-            if(!usuario.senha) showToast('Perfil antigo sem senha. Defina uma senha no perfil.');
+            const { data, error } = await getSupabaseClient().auth.signInWithPassword({ email, password: senha });
+            if(error) { showToast(error.message || 'E-mail ou senha invalidos.'); return; }
+            usuarioAtual = perfilDeAuthUser(data.user);
+            localStorage.setItem('finances_current_user_v1', usuarioAtual.id);
+            await iniciarAppUsuario();
         }
 
-        function recuperarSenha() {
+        async function recuperarSenha() {
+            if(!exigirSupabaseConfigurado()) return;
             const email = normalizarEmail(document.getElementById('login-email').value);
             if(!email) { showToast('Digite seu e-mail para recuperar a senha.'); return; }
-            const usuario = usuarios.find(u => u.email === email);
-            if(!usuario) { showToast('E-mail nao encontrado.'); return; }
-            if(!usuario.senha) { showToast('Este perfil ainda nao tem senha cadastrada.'); return; }
-            showToast(`Senha cadastrada: ${usuario.senha}`);
+            const { error } = await getSupabaseClient().auth.resetPasswordForEmail(email, {
+                redirectTo: SUPABASE_REDIRECT_URL
+            });
+            if(error) { showToast(error.message || 'Nao foi possivel enviar o link.'); return; }
+            showToast('Link de recuperacao enviado para o e-mail.');
         }
 
-        function sairUsuario() {
+        async function sairUsuario() {
+            if(getSupabaseClient()) await getSupabaseClient().auth.signOut();
             localStorage.removeItem('finances_current_user_v1');
             usuarioAtual = null;
             despesas = [];
@@ -570,22 +754,39 @@
             lucide.createIcons();
         }
 
-        function iniciarAuth() {
+        async function iniciarAuth() {
             carregarUsuarios();
-            const idSessao = localStorage.getItem('finances_current_user_v1');
-            usuarioAtual = usuarios.find(u => u.id === idSessao) || null;
-            if(usuarioAtual) iniciarAppUsuario();
-            else {
+            if(!getSupabaseClient()) {
+                document.getElementById('auth-screen').classList.remove('hidden');
+                document.getElementById('app-shell').classList.add('hidden');
+                atualizarStatusSupabase('Configure a URL e anon key no codigo para ativar o Supabase Auth.', 'erro');
+                lucide.createIcons();
+                return;
+            }
+            const { data } = await getSupabaseClient().auth.getSession();
+            if(data.session?.user) {
+                usuarioAtual = perfilDeAuthUser(data.session.user);
+                localStorage.setItem('finances_current_user_v1', usuarioAtual.id);
+                await iniciarAppUsuario();
+            } else {
                 document.getElementById('auth-screen').classList.remove('hidden');
                 document.getElementById('app-shell').classList.add('hidden');
                 lucide.createIcons();
             }
+            getSupabaseClient().auth.onAuthStateChange(async (event, session) => {
+                if(event === 'SIGNED_OUT') return;
+                if(session?.user && (!usuarioAtual || usuarioAtual.id !== session.user.id)) {
+                    usuarioAtual = perfilDeAuthUser(session.user);
+                    localStorage.setItem('finances_current_user_v1', usuarioAtual.id);
+                    await iniciarAppUsuario();
+                }
+            });
         }
 
-        function iniciarAppUsuario() {
+        async function iniciarAppUsuario() {
             document.getElementById('auth-screen').classList.add('hidden');
             document.getElementById('app-shell').classList.remove('hidden');
-            initData();
+            await initData();
             atualizarCabecalhoUsuario();
         }
 
@@ -597,7 +798,7 @@
         }
 
         // Local Storage Init
-        function initData() {
+        async function initData() {
             if(!usuarioAtual) return;
             const localData = localStorage.getItem(chaveUsuario('finances_data_v2'));
             const localCartoes = localStorage.getItem(chaveUsuario('finances_cards_v1'));
@@ -619,6 +820,7 @@
             }
             cartoes = localCartoes ? JSON.parse(localCartoes) : [];
             metas = localMetas ? JSON.parse(localMetas) : { economiaMensal: usuarioAtual.metaEconomia || 0, limitesCategoria: {} };
+            await carregarEstadoUsuarioSupabase();
             metas.limitesCategoria = metas.limitesCategoria || {};
             saveConfigData();
             atualizarLabelMes();
@@ -630,12 +832,14 @@
         function saveData() {
             if(!usuarioAtual) return;
             localStorage.setItem(chaveUsuario('finances_data_v2'), JSON.stringify(despesas));
+            agendarSyncSupabase();
         }
 
         function saveConfigData() {
             if(!usuarioAtual) return;
             localStorage.setItem(chaveUsuario('finances_cards_v1'), JSON.stringify(cartoes));
             localStorage.setItem(chaveUsuario('finances_goals_v1'), JSON.stringify(metas));
+            agendarSyncSupabase();
         }
 
         // Navegação de Meses
@@ -1191,15 +1395,19 @@
             document.getElementById('perfil-moeda').value = usuarioAtual.moeda || 'BRL';
         }
 
-        function salvarPerfil(event) {
+        async function salvarPerfil(event) {
             event.preventDefault();
+            if(!exigirSupabaseConfigurado()) return;
             const perfilAtualizado = lerPerfilCadastro('perfil');
             perfilAtualizado.id = usuarioAtual.id;
-            perfilAtualizado.senha = perfilAtualizado.senha || usuarioAtual.senha || '';
-            usuarioAtual = perfilAtualizado;
-            const idx = usuarios.findIndex(u => u.id === usuarioAtual.id);
-            if(idx >= 0) usuarios[idx] = usuarioAtual;
-            salvarUsuarios();
+            const authUpdate = {
+                email: perfilAtualizado.email,
+                data: dadosPerfilAuth(perfilAtualizado)
+            };
+            if(perfilAtualizado.senha) authUpdate.password = perfilAtualizado.senha;
+            const { data, error } = await getSupabaseClient().auth.updateUser(authUpdate);
+            if(error) { showToast(error.message || 'Nao foi possivel salvar o perfil.'); return; }
+            usuarioAtual = perfilDeAuthUser(data.user, perfilAtualizado);
             localStorage.setItem('finances_current_user_v1', usuarioAtual.id);
             metas.economiaMensal = usuarioAtual.metaEconomia || metas.economiaMensal || 0;
             saveConfigData();
@@ -1345,10 +1553,7 @@
                     metas = dados.metas || metas;
                     if(dados.usuario) {
                         dados.usuario.id = usuarioAtual.id;
-                        usuarioAtual = { ...usuarioAtual, ...dados.usuario };
-                        const idx = usuarios.findIndex(u => u.id === usuarioAtual.id);
-                        if(idx >= 0) usuarios[idx] = usuarioAtual;
-                        salvarUsuarios();
+                        usuarioAtual = { ...usuarioAtual, ...dados.usuario, senha: undefined };
                         atualizarCabecalhoUsuario();
                     }
                     saveData();
