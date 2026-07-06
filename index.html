@@ -1,0 +1,872 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Gerenciador de Despesas Pro</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['"Plus Jakarta Sans"', 'sans-serif'] },
+                    colors: {
+                        background: '#09090B', surface: '#18181B', surfaceHover: '#27272A', borderMain: '#27272A',
+                        brand: { yellow: '#FACC15', yellowHover: '#EAB308' },
+                        cat: { 
+                            alimentacao: '#f97316', transporte: '#3b82f6', moradia: '#8b5cf6', 
+                            cartao: '#ec4899', saude: '#10b981', lazer: '#f43f5e', 
+                            mercado: '#eab308', assinaturas: '#6366f1', outros: '#94a3b8' 
+                        }
+                    },
+                    boxShadow: { 'glow': '0 0 20px -5px rgba(250, 204, 21, 0.4)' }
+                }
+            }
+        }
+    </script>
+    <style>
+        ::-webkit-scrollbar { width: 0px; background: transparent; }
+        body { -webkit-tap-highlight-color: transparent; background-color: #000; }
+        .card-enter { animation: slideUpFade 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; opacity: 0; transform: translateY(15px); }
+        @keyframes slideUpFade { to { opacity: 1; transform: translateY(0); } }
+        .glass-panel { background: rgba(24, 24, 27, 0.6); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.05); }
+        .toast-enter { animation: toastIn 0.3s ease-out forwards; }
+        .toast-exit { animation: toastOut 0.3s ease-in forwards; }
+        @keyframes toastIn { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        @keyframes toastOut { from { transform: translateY(0); opacity: 1; } to { transform: translateY(100%); opacity: 0; } }
+        .progress-bar-animated { transition: width 1s cubic-bezier(0.4, 0, 0.2, 1); }
+    </style>
+</head>
+<body class="bg-background text-zinc-100 font-sans antialiased min-h-screen pb-28 selection:bg-brand-yellow selection:text-black">
+
+    <main class="max-w-md mx-auto min-h-screen bg-background relative overflow-hidden flex flex-col">
+        <!-- Glow top -->
+        <div class="absolute top-[-10%] left-[-10%] w-[120%] h-[40%] bg-brand-yellow/5 blur-[100px] rounded-full pointer-events-none"></div>
+
+        <header class="px-6 pt-12 pb-4 relative z-10">
+            <div class="flex justify-between items-center mb-6">
+                <div class="flex items-center gap-3">
+                    <div class="relative">
+                        <img src="https://i.pravatar.cc/150?img=11" alt="Perfil" class="w-11 h-11 rounded-full border-2 border-surface object-cover">
+                        <div class="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-background rounded-full"></div>
+                    </div>
+                    <div>
+                        <p class="text-xs text-zinc-400 font-medium">Olá, João!</p>
+                        <p class="text-sm font-bold tracking-tight">Painel Financeiro</p>
+                    </div>
+                </div>
+                <div class="flex space-x-2 bg-surface p-1 rounded-full border border-borderMain">
+                    <button onclick="abrirGestao()" class="p-2 rounded-full hover:bg-surfaceHover text-zinc-400 hover:text-white transition-colors">
+                        <i data-lucide="settings-2" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Mês e Saldo -->
+            <div class="flex flex-col gap-4">
+                <div class="self-start inline-flex items-center glass-panel rounded-full p-1 pl-3 pr-1 shadow-sm">
+                    <h2 class="font-semibold text-sm tracking-wide mr-2 text-zinc-200 capitalize" id="mes-atual">Julho 2026</h2>
+                    <div class="flex items-center bg-surfaceHover rounded-full">
+                        <button class="p-1.5 text-zinc-400 hover:text-white transition-colors" onclick="mudarMes(-1)"><i data-lucide="chevron-left" class="w-4 h-4"></i></button>
+                        <div class="w-[1px] h-3 bg-zinc-700"></div>
+                        <button class="p-1.5 text-zinc-400 hover:text-white transition-colors" onclick="mudarMes(1)"><i data-lucide="chevron-right" class="w-4 h-4"></i></button>
+                    </div>
+                </div>
+
+                <div>
+                    <p class="text-zinc-400 text-sm font-medium mb-1 flex items-center gap-2">
+                        Saldo Atual <i data-lucide="eye" id="icone-olho" onclick="togglePrivacidade()" class="w-4 h-4 cursor-pointer hover:text-zinc-200"></i>
+                    </p>
+                    <h1 class="text-4xl font-extrabold tracking-tight text-white mb-2" id="valor-saldo">R$ 0,00</h1>
+                    <p class="text-xs font-medium text-zinc-500" id="saldo-apos-pendentes">Após pagar pendentes: R$ 0,00</p>
+                </div>
+                
+                <!-- Grid Analítico -->
+                <div class="grid grid-cols-2 gap-3 mt-2">
+                    <div class="glass-panel p-3 rounded-2xl">
+                        <p class="text-[10px] text-zinc-400 font-medium mb-1 uppercase tracking-wider flex items-center"><i data-lucide="arrow-down-left" class="w-3 h-3 mr-1 text-emerald-500"></i> Receitas</p>
+                        <p class="font-bold text-white text-sm truncate" id="valor-receitas">R$ 0,00</p>
+                    </div>
+                    <div class="glass-panel p-3 rounded-2xl relative overflow-hidden">
+                        <div class="absolute bottom-0 left-0 h-1 bg-rose-500/50 progress-bar-animated" id="barra-percentual-gasto" style="width: 0%"></div>
+                        <p class="text-[10px] text-zinc-400 font-medium mb-1 uppercase tracking-wider flex items-center justify-between">
+                            <span><i data-lucide="arrow-up-right" class="w-3 h-3 mr-1 text-rose-500 inline"></i> Despesas</span>
+                            <span id="percentual-gasto" class="text-rose-400 font-bold">0%</span>
+                        </p>
+                        <p class="font-bold text-white text-sm truncate" id="valor-despesas">R$ 0,00</p>
+                    </div>
+                    <div class="glass-panel p-3 rounded-2xl">
+                        <p class="text-[10px] text-zinc-400 font-medium mb-1 uppercase tracking-wider text-brand-yellow">Total Pendente</p>
+                        <p class="font-bold text-white text-sm truncate" id="valor-pendente">R$ 0,00</p>
+                    </div>
+                    <div class="glass-panel p-3 rounded-2xl">
+                        <p class="text-[10px] text-zinc-400 font-medium mb-1 uppercase tracking-wider text-zinc-500">Total Pago</p>
+                        <p class="font-bold text-white text-sm truncate" id="valor-pago">R$ 0,00</p>
+                    </div>
+                </div>
+
+                <!-- Gráfico de Categorias (Visual Bar) -->
+                <div class="mt-2" id="area-grafico" style="display: none;">
+                    <p class="text-xs text-zinc-400 font-medium mb-2">Gastos por Categoria</p>
+                    <div class="h-2 w-full rounded-full flex overflow-hidden bg-surface border border-borderMain" id="grafico-barras">
+                        <!-- Barras injetadas via JS -->
+                    </div>
+                    <div class="flex flex-wrap gap-2 mt-3" id="grafico-legendas">
+                        <!-- Legendas injetadas via JS -->
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Lista de Despesas -->
+        <section class="flex-1 bg-surface/40 px-6 pt-8 pb-10 rounded-t-[2.5rem] border-t border-borderMain/50 relative z-10 backdrop-blur-3xl">
+            
+            <div class="mb-10">
+                <div class="flex items-center justify-between mb-5">
+                    <h3 class="text-lg font-bold tracking-tight text-white">Pendentes neste mês</h3>
+                    <span class="bg-brand-yellow/10 text-brand-yellow text-xs py-1 px-2.5 rounded-full font-bold border border-brand-yellow/20" id="badge-pendentes">0</span>
+                </div>
+                <div id="lista-pendentes" class="space-y-3"></div>
+            </div>
+
+            <div>
+                <div class="flex items-center mb-5">
+                    <h3 class="text-base font-bold tracking-tight text-zinc-500">Pagas / Recebidas</h3>
+                    <div class="ml-4 flex-1 h-[1px] bg-borderMain/60"></div>
+                </div>
+                <div id="lista-pagas" class="space-y-3"></div>
+            </div>
+            
+            <!-- Estado Vazio Mensal -->
+            <div id="estado-vazio" class="hidden flex-col items-center justify-center py-10 opacity-50">
+                <i data-lucide="calendar-x" class="w-12 h-12 text-zinc-600 mb-3"></i>
+                <p class="text-sm font-medium text-zinc-400">Nenhum registro para este mês.</p>
+            </div>
+        </section>
+
+        <!-- FAB -->
+        <div class="fixed bottom-0 left-0 right-0 p-6 pt-12 bg-gradient-to-t from-background via-background/90 to-transparent pointer-events-none z-40 flex justify-center">
+            <button onclick="toggleModal('abrir')" class="pointer-events-auto w-full max-w-[320px] bg-brand-yellow hover:bg-brand-yellowHover text-black font-bold py-4 rounded-2xl shadow-glow transition-all transform active:scale-95 flex items-center justify-center gap-2 text-base">
+                <i data-lucide="plus" class="w-5 h-5"></i> Adicionar Registo
+            </button>
+        </div>
+
+    </main>
+
+    <!-- TOAST NOTIFICATION -->
+    <div id="toast-container" class="fixed top-6 left-0 right-0 z-[70] flex flex-col items-center pointer-events-none px-4 space-y-2"></div>
+
+    <!-- MODAL CADASTRO -->
+    <div id="modal-backdrop" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden opacity-0 transition-opacity duration-300" onclick="toggleModal('fechar')"></div>
+    
+    <div id="modal-sheet" class="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-surface border-t border-borderMain rounded-t-[2.5rem] z-[60] transform translate-y-full transition-transform duration-400 ease-out flex flex-col max-h-[90vh]">
+        <div class="w-full flex justify-center pt-4 pb-2" onclick="toggleModal('fechar')"><div class="w-12 h-1.5 bg-zinc-700 rounded-full"></div></div>
+
+        <div class="px-6 pb-8 overflow-y-auto overflow-x-hidden relative">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-xl font-bold text-white tracking-tight" id="modal-title">Novo Registro</h2>
+                <button onclick="toggleModal('fechar')" class="p-2 rounded-full bg-zinc-800 text-zinc-400"><i data-lucide="x" class="w-4 h-4"></i></button>
+            </div>
+
+            <form id="form-cadastro" class="space-y-5" onsubmit="salvarRegisto(event)">
+                <div class="flex bg-zinc-900/50 p-1 rounded-xl border border-zinc-800/50">
+                    <button type="button" id="btn-tipo-despesa" onclick="setTipoRegisto('despesa')" class="flex-1 py-2 text-sm font-bold rounded-lg bg-surface text-white shadow-sm border border-borderMain transition-all">Despesa</button>
+                    <button type="button" id="btn-tipo-receita" onclick="setTipoRegisto('receita')" class="flex-1 py-2 text-sm font-bold rounded-lg text-zinc-500 hover:text-zinc-300 transition-all">Receita</button>
+                </div>
+
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-medium text-zinc-400 mb-1.5 ml-1">Descrição</label>
+                        <input type="text" id="input-descricao" required placeholder="Ex: Supermercado" class="w-full bg-background border border-borderMain rounded-xl py-3 px-4 text-white text-sm focus:border-brand-yellow outline-none transition-colors">
+                    </div>
+
+                    <div class="flex gap-4">
+                        <div class="flex-1">
+                            <label class="block text-xs font-medium text-zinc-400 mb-1.5 ml-1">Valor (R$)</label>
+                            <input type="number" id="input-valor" step="0.01" min="0.01" required placeholder="0,00" class="w-full bg-background border border-borderMain rounded-xl py-3 px-4 text-white text-sm focus:border-brand-yellow outline-none transition-colors">
+                        </div>
+                        <div class="flex-1">
+                            <label class="block text-xs font-medium text-zinc-400 mb-1.5 ml-1">Data</label>
+                            <input type="date" id="input-data" required class="w-full bg-background border border-borderMain rounded-xl py-3 px-4 text-white text-sm focus:border-brand-yellow outline-none transition-colors [&::-webkit-calendar-picker-indicator]:invert-[0.8]">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-medium text-zinc-400 mb-1.5 ml-1">Categoria</label>
+                        <select id="input-categoria" class="w-full bg-background border border-borderMain rounded-xl py-3 px-4 text-white text-sm focus:border-brand-yellow outline-none appearance-none">
+                            <option value="Alimentação">Alimentação</option>
+                            <option value="Transporte">Transporte</option>
+                            <option value="Moradia">Moradia</option>
+                            <option value="Saúde">Saúde</option>
+                            <option value="Mercado">Mercado</option>
+                            <option value="Assinaturas">Assinaturas</option>
+                            <option value="Lazer">Lazer</option>
+                            <option value="Outros">Outros</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div id="area-opcoes-despesa" class="space-y-4 pt-2 border-t border-borderMain/50">
+                    <label class="block text-xs font-medium text-zinc-400 ml-1">Método de Pagamento</label>
+                    <div class="grid grid-cols-2 gap-3">
+                        <label class="relative flex cursor-pointer items-center justify-center rounded-xl border border-brand-yellow bg-brand-yellow/10 p-3" id="label-padrao">
+                            <input type="radio" name="metodo_pagamento" value="padrao" checked onchange="toggleCartaoFields()" class="sr-only">
+                            <span class="text-sm font-semibold text-brand-yellow flex items-center gap-2"><i data-lucide="banknote" class="w-4 h-4"></i> Fixo / À Vista</span>
+                        </label>
+                        <label class="relative flex cursor-pointer items-center justify-center rounded-xl border border-borderMain bg-background p-3" id="label-cartao">
+                            <input type="radio" name="metodo_pagamento" value="cartao" onchange="toggleCartaoFields()" class="sr-only">
+                            <span class="text-sm font-semibold text-zinc-400 flex items-center gap-2"><i data-lucide="credit-card" class="w-4 h-4"></i> Cartão</span>
+                        </label>
+                    </div>
+
+                    <!-- Campos Cartão -->
+                    <div id="campos-cartao" class="hidden space-y-4 pt-2">
+                        <div class="flex gap-4">
+                            <div class="flex-1">
+                                <label class="block text-xs font-medium text-zinc-400 mb-1.5 ml-1">Nome do Cartão</label>
+                                <input type="text" id="input-cartao-nome" placeholder="Ex: Nubank" class="w-full bg-background border border-borderMain rounded-xl py-3 px-4 text-white text-sm focus:border-brand-yellow outline-none">
+                            </div>
+                            <div class="w-1/3">
+                                <label class="block text-xs font-medium text-zinc-400 mb-1.5 ml-1">Parcelas</label>
+                                <input type="number" id="input-parcelas" min="1" max="48" placeholder="1" class="w-full bg-background border border-borderMain rounded-xl py-3 px-4 text-white text-sm focus:border-brand-yellow outline-none">
+                            </div>
+                        </div>
+                        <p class="text-[10px] text-zinc-500 italic">*Parcelas futuras serão geradas automaticamente.</p>
+                    </div>
+
+                    <!-- Opção de Repetir (Despesa Fixa) -->
+                    <div id="campo-repetir" class="pt-2">
+                        <label class="flex items-center gap-2 cursor-pointer group">
+                            <input type="checkbox" id="input-repetir" class="w-4 h-4 rounded border-borderMain text-brand-yellow focus:ring-brand-yellow bg-background">
+                            <span class="text-sm font-medium text-zinc-400 group-hover:text-zinc-300">Repetir mensalmente até Dezembro</span>
+                        </label>
+                    </div>
+                </div>
+
+                <button type="submit" id="btn-submit-form" class="w-full bg-brand-yellow hover:bg-brand-yellowHover text-black font-bold py-3.5 rounded-xl transition-all active:scale-95 flex items-center justify-center gap-2 text-sm mt-6">
+                    <i data-lucide="save" class="w-5 h-5"></i> <span id="text-submit-form">Salvar Registro</span>
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL GESTÃO / BUSCA -->
+    <div id="modal-gestao-sheet" class="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-surface border-t border-borderMain rounded-t-[2.5rem] z-[60] transform translate-y-full transition-transform duration-400 ease-out flex flex-col max-h-[85vh]">
+        <div class="w-full flex justify-center pt-4 pb-2" onclick="fecharGestao()"><div class="w-12 h-1.5 bg-zinc-700 rounded-full"></div></div>
+
+        <div class="px-6 pb-8 overflow-y-auto overflow-x-hidden relative h-full flex flex-col">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-bold text-white tracking-tight flex items-center gap-2"><i data-lucide="filter" class="w-5 h-5 text-zinc-400"></i> Gerenciar Registros</h2>
+                <button onclick="fecharGestao()" class="p-2 rounded-full bg-zinc-800 text-zinc-400"><i data-lucide="x" class="w-4 h-4"></i></button>
+            </div>
+
+            <!-- Filtros e Busca -->
+            <div class="space-y-3 mb-4">
+                <input type="text" id="busca-gestao" placeholder="Buscar por descrição..." oninput="renderizarListaGestao()" class="w-full bg-background border border-borderMain rounded-xl py-2.5 px-4 text-white text-sm focus:border-brand-yellow outline-none">
+                <select id="filtro-status-gestao" onchange="renderizarListaGestao()" class="w-full bg-background border border-borderMain rounded-xl py-2.5 px-4 text-white text-sm focus:border-brand-yellow outline-none">
+                    <option value="todos">Todos os Registros</option>
+                    <option value="pendentes">Apenas Pendentes</option>
+                    <option value="pagas">Apenas Pagas</option>
+                    <option value="receitas">Apenas Receitas</option>
+                </select>
+            </div>
+
+            <div id="lista-gestao" class="space-y-2 flex-1 overflow-y-auto pb-4"></div>
+        </div>
+    </div>
+
+    <script>
+        lucide.createIcons();
+
+        // Constantes e Utilidades
+        const categoriasColors = {
+            'Alimentação': 'bg-orange-500', 'Transporte': 'bg-blue-500', 'Moradia': 'bg-purple-500',
+            'Saúde': 'bg-emerald-500', 'Mercado': 'bg-yellow-500', 'Assinaturas': 'bg-indigo-500',
+            'Lazer': 'bg-rose-500', 'Outros': 'bg-slate-400', 'Cartão': 'bg-pink-500' // Cartão genérico
+        };
+        const categoriasIcons = {
+            'Alimentação': 'utensils', 'Transporte': 'car', 'Moradia': 'home',
+            'Saúde': 'activity', 'Mercado': 'shopping-cart', 'Assinaturas': 'monitor-play',
+            'Lazer': 'gamepad-2', 'Outros': 'tag', 'Receita': 'arrow-down-left'
+        };
+
+        const formatarMoeda = (val) => val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+        const formatarData = (dataStr) => dataStr.split('-').reverse().slice(0, 2).join('/'); // DD/MM
+
+        // Estado da Aplicação
+        let dataAtual = new Date();
+        let mesAtual = dataAtual.getMonth(); // 0 a 11
+        let anoAtual = dataAtual.getFullYear();
+        let despesas = [];
+        let valoresOcultos = false;
+        let registoEmEdicao = null;
+        let itemExcluidoRecentemente = null;
+        let timeoutUndo = null;
+
+        // Local Storage Init
+        function initData() {
+            const localData = localStorage.getItem('finances_data_v2');
+            if (localData) {
+                despesas = JSON.parse(localData);
+            } else {
+                // Dados de demonstração em BRL
+                const dataDemo = `${anoAtual}-${String(mesAtual+1).padStart(2, '0')}`;
+                despesas = [
+                    { id: Date.now()+1, tipo: 'receita', descricao: 'Salário Mensal', valor: 4500.00, data: `${dataDemo}-05`, status_pagamento: true, categoria: 'Outros', icone: 'arrow-down-left' },
+                    { id: Date.now()+2, tipo: 'padrao', descricao: 'Conta de Luz', valor: 185.50, data: `${dataDemo}-10`, status_pagamento: false, categoria: 'Moradia', icone: 'home' },
+                    { id: Date.now()+3, tipo: 'cartao', cartao_nome: 'Nubank', descricao: 'Tênis Novo', valor_total: 450.00, quantidade_parcelas: 3, parcela_atual: 1, valor_parcela: 150.00, data: `${dataDemo}-15`, status_pagamento: false, categoria: 'Lazer', icone: 'gamepad-2', parent_id: 'grp1' }
+                ];
+                saveData();
+            }
+            atualizarLabelMes();
+            renderizarDashboard();
+        }
+
+        function saveData() {
+            localStorage.setItem('finances_data_v2', JSON.stringify(despesas));
+        }
+
+        // Navegação de Meses
+        const nomesMeses = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+        
+        function mudarMes(direcao) {
+            mesAtual += direcao;
+            if (mesAtual > 11) { mesAtual = 0; anoAtual++; }
+            if (mesAtual < 0) { mesAtual = 11; anoAtual--; }
+            atualizarLabelMes();
+            renderizarDashboard();
+        }
+
+        function atualizarLabelMes() {
+            document.getElementById('mes-atual').textContent = `${nomesMeses[mesAtual]} ${anoAtual}`;
+        }
+
+        function getDespesasDoMes() {
+            return despesas.filter(d => {
+                const parts = d.data.split('-');
+                return parseInt(parts[0]) === anoAtual && parseInt(parts[1]) === (mesAtual + 1);
+            });
+        }
+
+        // Toast Notifications
+        function showToast(mensagem, isUndo = false) {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `bg-surface border border-borderMain text-white px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 text-sm font-medium toast-enter pointer-events-auto`;
+            
+            toast.innerHTML = `
+                <i data-lucide="${isUndo ? 'trash' : 'check-circle'}" class="w-5 h-5 ${isUndo ? 'text-zinc-400' : 'text-emerald-500'}"></i>
+                <span class="flex-1">${mensagem}</span>
+                ${isUndo ? `<button onclick="desfazerExclusao(this)" class="text-brand-yellow hover:text-brand-yellowHover px-2 py-1 uppercase text-xs font-bold transition-colors">Desfazer</button>` : ''}
+            `;
+            
+            container.appendChild(toast);
+            lucide.createIcons();
+
+            const timer = setTimeout(() => {
+                toast.classList.replace('toast-enter', 'toast-exit');
+                setTimeout(() => toast.remove(), 300);
+            }, isUndo ? 5000 : 3000); // 5 segs para desfazer
+            
+            if(isUndo) toast.dataset.timerId = timer; // Guardar id do timer se precisarmos cancelar
+        }
+
+        function desfazerExclusao(btnElement) {
+            if (itemExcluidoRecentemente) {
+                // Restaura o item ou itens (no caso de parcelamentos deletados em lote futuramente, mas aqui fazemos 1 a 1)
+                despesas.push(itemExcluidoRecentemente);
+                saveData();
+                itemExcluidoRecentemente = null;
+                
+                const toast = btnElement.closest('div');
+                toast.classList.replace('toast-enter', 'toast-exit');
+                setTimeout(() => toast.remove(), 300);
+                
+                renderizarDashboard();
+                if(document.getElementById('modal-gestao-sheet').classList.contains('translate-y-full') === false) {
+                    renderizarListaGestao();
+                }
+                showToast('Ação desfeita com sucesso!');
+            }
+        }
+
+        // Renderização Principal
+        function renderizarDashboard() {
+            const despesasMes = getDespesasDoMes();
+            
+            const listaPendentes = document.getElementById('lista-pendentes');
+            const listaPagas = document.getElementById('lista-pagas');
+            const badgePendentes = document.getElementById('badge-pendentes');
+            const estadoVazio = document.getElementById('estado-vazio');
+            
+            listaPendentes.innerHTML = '';
+            listaPagas.innerHTML = '';
+            
+            let totalReceitas = 0, totalDespesas = 0, totalPendente = 0, totalPago = 0;
+            let contagemPendentes = 0;
+            let gastosPorCategoria = {};
+
+            // Ordenar por data
+            despesasMes.sort((a, b) => new Date(a.data) - new Date(b.data));
+
+            if(despesasMes.length === 0) {
+                estadoVazio.classList.replace('hidden', 'flex');
+            } else {
+                estadoVazio.classList.replace('flex', 'hidden');
+            }
+
+            despesasMes.forEach((item, index) => {
+                const valorCalc = item.tipo === 'cartao' ? item.valor_parcela : item.valor;
+                const isReceita = item.tipo === 'receita';
+                
+                if (isReceita) {
+                    totalReceitas += valorCalc;
+                } else {
+                    totalDespesas += valorCalc;
+                    if (item.status_pagamento) totalPago += valorCalc;
+                    else totalPendente += valorCalc;
+                    
+                    // Somar para o gráfico
+                    if(!gastosPorCategoria[item.categoria]) gastosPorCategoria[item.categoria] = 0;
+                    gastosPorCategoria[item.categoria] += valorCalc;
+                }
+
+                // Render UI
+                const animDelay = index * 0.05;
+                const iconeCat = isReceita ? 'arrow-down-left' : (categoriasIcons[item.categoria] || categoriasIcons['Outros']);
+                const colorCatClass = isReceita ? 'text-emerald-500' : 'text-zinc-300';
+                
+                let badgeHTML = '';
+                if (item.tipo === 'cartao') {
+                    badgeHTML = `<span class="inline-flex items-center gap-1 mt-1 text-[10px] font-semibold text-zinc-400"><i data-lucide="credit-card" class="w-3 h-3"></i> ${item.cartao_nome} (${item.parcela_atual}/${item.quantidade_parcelas})</span>`;
+                } else {
+                    badgeHTML = `<span class="inline-flex items-center gap-1 mt-1 text-[10px] font-medium text-zinc-500">${formatarData(item.data)} • ${item.categoria}</span>`;
+                }
+
+                if (!item.status_pagamento && !isReceita) {
+                    contagemPendentes++;
+                    listaPendentes.innerHTML += `
+                        <div class="card-enter bg-surface border border-borderMain rounded-2xl p-4 flex flex-col gap-4 shadow-sm relative overflow-hidden group" style="animation-delay: ${animDelay}s" id="card-${item.id}">
+                            <div class="flex justify-between items-start">
+                                <div class="flex gap-3 items-center min-w-0 pr-2">
+                                    <div class="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center ${colorCatClass} shrink-0 border border-zinc-700/50">
+                                        <i data-lucide="${iconeCat}" class="w-4 h-4"></i>
+                                    </div>
+                                    <div class="min-w-0">
+                                        <h4 class="font-bold text-zinc-100 text-sm truncate">${item.descricao}</h4>
+                                        ${badgeHTML}
+                                    </div>
+                                </div>
+                                <div class="text-right shrink-0">
+                                    <span class="font-extrabold text-white text-sm">${formatarMoeda(valorCalc)}</span>
+                                </div>
+                            </div>
+                            <button onclick="marcarComoPago(${item.id})" class="w-full bg-zinc-800 hover:bg-brand-yellow text-zinc-300 hover:text-black font-bold py-2.5 rounded-xl transition-all duration-300 flex items-center justify-center gap-2 text-sm border border-zinc-700 hover:border-brand-yellow active:scale-95">
+                                <i data-lucide="check" class="w-4 h-4"></i> Pagar
+                            </button>
+                        </div>
+                    `;
+                } else {
+                    const prefixo = isReceita ? '+' : '';
+                    const opacity = isReceita ? 'opacity-100' : 'opacity-60 grayscale-[40%]';
+                    const titleClass = isReceita ? 'text-zinc-200' : 'text-zinc-400 line-through decoration-zinc-600';
+                    const iconBg = isReceita ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : 'bg-zinc-800 text-zinc-500 border-zinc-700/50';
+                    const finalIcon = isReceita ? 'arrow-down-left' : 'check-check';
+
+                    listaPagas.innerHTML += `
+                        <div class="card-enter bg-transparent border border-borderMain/40 rounded-2xl p-3 flex items-center justify-between ${opacity}" style="animation-delay: ${animDelay}s">
+                            <div class="flex gap-3 items-center min-w-0 pr-2">
+                                <div class="w-8 h-8 rounded-full ${iconBg} border flex items-center justify-center shrink-0">
+                                    <i data-lucide="${finalIcon}" class="w-4 h-4"></i>
+                                </div>
+                                <div class="min-w-0">
+                                    <h4 class="font-semibold ${titleClass} text-sm truncate">${item.descricao}</h4>
+                                    <p class="text-[10px] text-zinc-500 mt-0.5">${formatarData(item.data)} • ${item.categoria}</p>
+                                </div>
+                            </div>
+                            <span class="font-bold ${isReceita ? 'text-emerald-500' : 'text-zinc-500'} text-sm shrink-0">${prefixo}${formatarMoeda(valorCalc)}</span>
+                        </div>
+                    `;
+                }
+            });
+
+            badgePendentes.textContent = contagemPendentes;
+
+            // Atualizar UI do Dashboard Financeiro
+            const saldoAtual = totalReceitas - totalDespesas;
+            const saldoAposPendentes = totalReceitas - totalPago - totalPendente; // Igual ao saldoAtual teoricamente, mas útil mentalmente
+            const percentualGasto = totalReceitas > 0 ? ((totalDespesas / totalReceitas) * 100) : (totalDespesas > 0 ? 100 : 0);
+
+            if (valoresOcultos) {
+                document.getElementById('valor-saldo').innerHTML = `R$ ••••`;
+                document.getElementById('saldo-apos-pendentes').innerText = `Após pagar pendentes: R$ ••••`;
+                document.getElementById('valor-receitas').innerText = `R$ ••••`;
+                document.getElementById('valor-despesas').innerText = `R$ ••••`;
+                document.getElementById('valor-pendente').innerText = `R$ ••••`;
+                document.getElementById('valor-pago').innerText = `R$ ••••`;
+            } else {
+                document.getElementById('valor-saldo').innerText = formatarMoeda(saldoAtual);
+                document.getElementById('saldo-apos-pendentes').innerText = `Após pagar pendentes: ${formatarMoeda(saldoAposPendentes)}`;
+                document.getElementById('valor-receitas').innerText = formatarMoeda(totalReceitas);
+                document.getElementById('valor-despesas').innerText = formatarMoeda(totalDespesas);
+                document.getElementById('valor-pendente').innerText = formatarMoeda(totalPendente);
+                document.getElementById('valor-pago').innerText = formatarMoeda(totalPago);
+            }
+
+            // Barra percentual
+            const barra = document.getElementById('barra-percentual-gasto');
+            const percEl = document.getElementById('percentual-gasto');
+            barra.style.width = `${Math.min(percentualGasto, 100)}%`;
+            percEl.innerText = `${percentualGasto.toFixed(0)}%`;
+            if(percentualGasto > 90) { barra.classList.replace('bg-rose-500/50', 'bg-red-500'); percEl.classList.add('text-red-500'); }
+
+            // Renderizar Gráfico
+            renderizarGrafico(gastosPorCategoria, totalDespesas);
+
+            lucide.createIcons();
+        }
+
+        function renderizarGrafico(categoriasObj, total) {
+            const area = document.getElementById('area-grafico');
+            const barras = document.getElementById('grafico-barras');
+            const legendas = document.getElementById('grafico-legendas');
+            
+            barras.innerHTML = ''; legendas.innerHTML = '';
+            
+            if(total <= 0) { area.style.display = 'none'; return; }
+            area.style.display = 'block';
+
+            Object.keys(categoriasObj).sort((a,b) => categoriasObj[b] - categoriasObj[a]).forEach(cat => {
+                const valor = categoriasObj[cat];
+                const perc = (valor / total) * 100;
+                const corClass = categoriasColors[cat] || 'bg-slate-400';
+                
+                // Barra
+                barras.innerHTML += `<div class="h-full ${corClass}" style="width: ${perc}%" title="${cat}: ${formatarMoeda(valor)}"></div>`;
+                // Legenda
+                legendas.innerHTML += `
+                    <div class="flex items-center gap-1.5 text-[10px] text-zinc-400 font-medium">
+                        <div class="w-2 h-2 rounded-full ${corClass}"></div> ${cat} (${perc.toFixed(0)}%)
+                    </div>
+                `;
+            });
+        }
+
+        function marcarComoPago(id) {
+            const card = document.getElementById(`card-${id}`);
+            if(card) { card.style.transform = 'scale(0.95)'; card.style.opacity = '0.5'; }
+            setTimeout(() => {
+                const index = despesas.findIndex(d => d.id === id);
+                if (index !== -1) {
+                    despesas[index].status_pagamento = true;
+                    saveData();
+                    renderizarDashboard();
+                }
+            }, 250); 
+        }
+
+        function togglePrivacidade() {
+            valoresOcultos = !valoresOcultos;
+            document.getElementById('icone-olho').setAttribute('data-lucide', valoresOcultos ? 'eye-off' : 'eye');
+            renderizarDashboard();
+        }
+
+        // --- GESTÃO / MODAL FORMULÁRIO ---
+        let tipoRegistoAtual = 'despesa';
+
+        function toggleModal(acao) {
+            const backdrop = document.getElementById('modal-backdrop');
+            const sheet = document.getElementById('modal-sheet');
+
+            if (acao === 'abrir') {
+                if (!registoEmEdicao) {
+                    document.getElementById('input-data').valueAsDate = new Date();
+                    document.getElementById('text-submit-form').innerText = "Salvar Registro";
+                    document.getElementById('modal-title').innerText = "Novo Registro";
+                    document.getElementById('input-cartao-nome').disabled = false;
+                    document.getElementById('input-parcelas').disabled = false;
+                    document.getElementById('campo-repetir').classList.remove('hidden');
+                }
+                backdrop.classList.remove('hidden');
+                setTimeout(() => { backdrop.classList.remove('opacity-0'); sheet.classList.remove('translate-y-full'); }, 10);
+            } else {
+                backdrop.classList.add('opacity-0');
+                sheet.classList.add('translate-y-full');
+                setTimeout(() => { backdrop.classList.add('hidden'); registoEmEdicao = null; document.getElementById('form-cadastro').reset(); setTipoRegisto('despesa'); }, 400);
+            }
+        }
+
+        function setTipoRegisto(tipo) {
+            tipoRegistoAtual = tipo;
+            const areaDespesa = document.getElementById('area-opcoes-despesa');
+            const catSelect = document.getElementById('input-categoria');
+            
+            if (tipo === 'despesa') {
+                document.getElementById('btn-tipo-despesa').className = 'flex-1 py-2 text-sm font-bold rounded-lg bg-surface text-white shadow-sm border border-borderMain';
+                document.getElementById('btn-tipo-receita').className = 'flex-1 py-2 text-sm font-bold rounded-lg text-zinc-500 hover:text-zinc-300';
+                areaDespesa.classList.remove('hidden');
+                catSelect.disabled = false;
+            } else {
+                document.getElementById('btn-tipo-receita').className = 'flex-1 py-2 text-sm font-bold rounded-lg bg-surface text-white shadow-sm border border-borderMain';
+                document.getElementById('btn-tipo-despesa').className = 'flex-1 py-2 text-sm font-bold rounded-lg text-zinc-500 hover:text-zinc-300';
+                areaDespesa.classList.add('hidden');
+                catSelect.value = 'Outros'; 
+                catSelect.disabled = true; // Receitas simplificadas por agora
+            }
+        }
+
+        function toggleCartaoFields() {
+            const isCartao = document.querySelector('input[name="metodo_pagamento"]:checked').value === 'cartao';
+            const camposCartao = document.getElementById('campos-cartao');
+            const campoRepetir = document.getElementById('campo-repetir');
+            
+            if (isCartao) {
+                camposCartao.classList.remove('hidden');
+                campoRepetir.classList.add('hidden'); // Não repete parcelado desta forma
+                document.getElementById('label-cartao').classList.add('border-brand-yellow', 'bg-brand-yellow/10');
+                document.getElementById('label-cartao').classList.remove('border-borderMain', 'bg-background');
+                document.getElementById('label-padrao').classList.remove('border-brand-yellow', 'bg-brand-yellow/10');
+                document.getElementById('label-padrao').classList.add('border-borderMain', 'bg-background');
+            } else {
+                camposCartao.classList.add('hidden');
+                if(!registoEmEdicao) campoRepetir.classList.remove('hidden');
+                document.getElementById('label-padrao').classList.add('border-brand-yellow', 'bg-brand-yellow/10');
+                document.getElementById('label-padrao').classList.remove('border-borderMain', 'bg-background');
+                document.getElementById('label-cartao').classList.remove('border-brand-yellow', 'bg-brand-yellow/10');
+                document.getElementById('label-cartao').classList.add('border-borderMain', 'bg-background');
+            }
+        }
+
+        function adicionarMesDate(dataStr, mesesAdd) {
+            let d = new Date(dataStr + 'T12:00:00');
+            d.setMonth(d.getMonth() + mesesAdd);
+            return d.toISOString().split('T')[0];
+        }
+
+        function salvarRegisto(event) {
+            event.preventDefault();
+
+            const descricao = document.getElementById('input-descricao').value.trim();
+            const valor = parseFloat(document.getElementById('input-valor').value);
+            const data = document.getElementById('input-data').value;
+            const categoria = document.getElementById('input-categoria').value;
+
+            // Validações
+            if (!descricao) { showToast('A descrição é obrigatória.'); return; }
+            if (valor <= 0 || isNaN(valor)) { showToast('O valor deve ser maior que zero.'); return; }
+            if (!data) { showToast('Data inválida.'); return; }
+
+            const parentId = registoEmEdicao ? despesas.find(d => d.id === registoEmEdicao)?.parent_id : `grp_${Date.now()}`;
+
+            let novosRegistros = [];
+
+            if (registoEmEdicao) {
+                // Modo Edição (Apenas altera o registro específico, preservando parcelas/regras geradas)
+                const index = despesas.findIndex(d => d.id === registoEmEdicao);
+                if(index !== -1) {
+                    despesas[index].descricao = descricao;
+                    despesas[index].data = data;
+                    if(despesas[index].tipo === 'cartao'){
+                       despesas[index].valor_parcela = valor; // Na edição, o user altera o valor da parcela
+                       despesas[index].valor_total = valor * despesas[index].quantidade_parcelas; // Reajusta total
+                    } else {
+                       despesas[index].valor = valor;
+                    }
+                    if(tipoRegistoAtual === 'despesa') despesas[index].categoria = categoria;
+                }
+                showToast('Registro atualizado!');
+            } else {
+                // Modo Criação
+                if (tipoRegistoAtual === 'receita') {
+                    novosRegistros.push({
+                        id: Date.now(), tipo: 'receita', descricao, valor, data, status_pagamento: true, categoria: 'Receita'
+                    });
+                } else {
+                    const metodo = document.querySelector('input[name="metodo_pagamento"]:checked').value;
+                    
+                    if (metodo === 'cartao') {
+                        const cartaoNome = document.getElementById('input-cartao-nome').value || 'Cartão';
+                        const parcelas = parseInt(document.getElementById('input-parcelas').value) || 1;
+                        if(parcelas > 48 || parcelas < 1) { showToast('Parcelas inválidas (1-48).'); return; }
+
+                        const valorParcela = valor / parcelas;
+                        
+                        // Gerar Parcelas
+                        for(let i = 0; i < parcelas; i++) {
+                            novosRegistros.push({
+                                id: Date.now() + i, parent_id: parentId, tipo: 'cartao', cartao_nome: cartaoNome,
+                                descricao, valor_total: valor, valor_parcela: valorParcela,
+                                quantidade_parcelas: parcelas, parcela_atual: i + 1,
+                                data: adicionarMesDate(data, i), status_pagamento: false, categoria
+                            });
+                        }
+                    } else {
+                        const repetirAteDezembro = document.getElementById('input-repetir').checked;
+                        if(repetirAteDezembro) {
+                            const dataObj = new Date(data + 'T12:00:00');
+                            const mesInicial = dataObj.getMonth();
+                            // Loop do mês escolhido até Dezembro (11)
+                            for(let i = mesInicial; i <= 11; i++) {
+                                novosRegistros.push({
+                                    id: Date.now() + i, parent_id: parentId, tipo: 'padrao',
+                                    descricao, valor, data: adicionarMesDate(data, i - mesInicial),
+                                    status_pagamento: false, categoria
+                                });
+                            }
+                        } else {
+                            novosRegistros.push({
+                                id: Date.now(), tipo: 'padrao', descricao, valor, data, status_pagamento: false, categoria
+                            });
+                        }
+                    }
+                }
+                despesas.push(...novosRegistros);
+                showToast(novosRegistros.length > 1 ? `${novosRegistros.length} registros criados (Parcelas/Fixa).` : 'Registro salvo!');
+            }
+
+            saveData();
+            toggleModal('fechar');
+            renderizarDashboard();
+            if(document.getElementById('modal-gestao-sheet').classList.contains('translate-y-full') === false) {
+                renderizarListaGestao();
+            }
+        }
+
+        // --- ÁREA DE GESTÃO E FILTROS ---
+        function abrirGestao() {
+            document.getElementById('busca-gestao').value = '';
+            document.getElementById('filtro-status-gestao').value = 'todos';
+            renderizarListaGestao();
+            document.getElementById('modal-backdrop').classList.remove('hidden');
+            setTimeout(() => {
+                document.getElementById('modal-backdrop').classList.remove('opacity-0');
+                document.getElementById('modal-gestao-sheet').classList.remove('translate-y-full');
+            }, 10);
+        }
+
+        function fecharGestao() {
+            document.getElementById('modal-gestao-sheet').classList.add('translate-y-full');
+            document.getElementById('modal-backdrop').classList.add('opacity-0');
+            setTimeout(() => { document.getElementById('modal-backdrop').classList.add('hidden'); }, 400);
+        }
+
+        function renderizarListaGestao() {
+            const lista = document.getElementById('lista-gestao');
+            const termoBusca = document.getElementById('busca-gestao').value.toLowerCase();
+            const filtroStatus = document.getElementById('filtro-status-gestao').value;
+            
+            lista.innerHTML = '';
+            
+            // Usar dados do mês atual para gestão faz mais sentido na UX
+            let dados = getDespesasDoMes();
+
+            // Aplicar Filtros
+            dados = dados.filter(d => {
+                const matchBusca = d.descricao.toLowerCase().includes(termoBusca) || (d.categoria && d.categoria.toLowerCase().includes(termoBusca));
+                let matchStatus = true;
+                if(filtroStatus === 'pendentes') matchStatus = !d.status_pagamento && d.tipo !== 'receita';
+                if(filtroStatus === 'pagas') matchStatus = d.status_pagamento && d.tipo !== 'receita';
+                if(filtroStatus === 'receitas') matchStatus = d.tipo === 'receita';
+                return matchBusca && matchStatus;
+            });
+
+            if(dados.length === 0) {
+                lista.innerHTML = '<p class="text-zinc-500 text-sm text-center py-8">Nenhum registro encontrado com estes filtros no mês atual.</p>';
+                return;
+            }
+
+            dados.sort((a, b) => new Date(b.data) - new Date(a.data)).forEach(d => {
+                const isCartao = d.tipo === 'cartao';
+                const valorExibir = isCartao ? d.valor_parcela : d.valor;
+                let infoExtra = d.tipo === 'receita' ? 'Receita' : (isCartao ? `Cartão (${d.parcela_atual}/${d.quantidade_parcelas})` : 'Fixo');
+                let corValor = d.tipo === 'receita' ? 'text-emerald-500' : 'text-zinc-100';
+                
+                lista.innerHTML += `
+                    <div class="bg-surfaceHover border border-borderMain rounded-xl p-3 flex justify-between items-center group">
+                        <div class="flex-1 min-w-0 pr-2">
+                            <h4 class="font-bold text-zinc-200 text-sm truncate">${d.descricao}</h4>
+                            <p class="text-[10px] text-zinc-400 mt-1">${formatarData(d.data)} • ${infoExtra} • <span class="${corValor} font-bold">${formatarMoeda(valorExibir)}</span></p>
+                        </div>
+                        <div class="flex gap-1 shrink-0">
+                            <button onclick="prepararEdicao(${d.id})" class="p-2 rounded-lg text-brand-yellow hover:bg-brand-yellow/10 transition-colors">
+                                <i data-lucide="edit-2" class="w-4 h-4"></i>
+                            </button>
+                            <button id="btn-del-${d.id}" onclick="confirmarExclusao(${d.id})" class="p-2 rounded-lg text-rose-500 hover:bg-rose-500/10 transition-colors">
+                                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            });
+            lucide.createIcons();
+        }
+
+        let idExclusaoPendente = null;
+        function confirmarExclusao(id) {
+            const btn = document.getElementById(`btn-del-${id}`);
+            if(idExclusaoPendente === id) {
+                itemExcluidoRecentemente = despesas.find(d => d.id === id); // Guardar para Undo
+                despesas = despesas.filter(d => d.id !== id);
+                saveData();
+                idExclusaoPendente = null;
+                showToast('Registro excluído.', true); // true = mostra botão desfazer
+                renderizarListaGestao();
+                renderizarDashboard();
+            } else {
+                if(idExclusaoPendente && document.getElementById(`btn-del-${idExclusaoPendente}`)) {
+                    document.getElementById(`btn-del-${idExclusaoPendente}`).innerHTML = '<i data-lucide="trash-2" class="w-4 h-4"></i>';
+                }
+                idExclusaoPendente = id;
+                btn.innerHTML = '<i data-lucide="alert-triangle" class="w-4 h-4"></i>';
+                lucide.createIcons();
+                setTimeout(() => { if(idExclusaoPendente === id) { idExclusaoPendente = null; renderizarListaGestao(); } }, 3000);
+            }
+        }
+
+        function prepararEdicao(id) {
+            fecharGestao();
+            const despesa = despesas.find(d => d.id === id);
+            if(!despesa) return;
+            registoEmEdicao = id;
+            
+            setTimeout(() => {
+                setTipoRegisto(despesa.tipo === 'receita' ? 'receita' : 'despesa');
+                document.getElementById('input-descricao').value = despesa.descricao;
+                document.getElementById('input-data').value = despesa.data;
+                document.getElementById('campo-repetir').classList.add('hidden'); // Ocultar na edição
+                
+                if(despesa.tipo === 'receita') {
+                    document.getElementById('input-valor').value = despesa.valor;
+                } else {
+                    document.getElementById('input-categoria').value = despesa.categoria;
+                    if (despesa.tipo === 'cartao') {
+                        document.getElementById('input-valor').value = despesa.valor_parcela; // Edita a parcela específica
+                        document.querySelector('input[value="cartao"]').checked = true;
+                        toggleCartaoFields();
+                        document.getElementById('input-cartao-nome').value = despesa.cartao_nome;
+                        document.getElementById('input-cartao-nome').disabled = true; // Protege metadados do cartão
+                        document.getElementById('input-parcelas').value = despesa.quantidade_parcelas;
+                        document.getElementById('input-parcelas').disabled = true;
+                    } else {
+                        document.getElementById('input-valor').value = despesa.valor;
+                        document.querySelector('input[value="padrao"]').checked = true;
+                        toggleCartaoFields();
+                    }
+                }
+                
+                document.getElementById('modal-title').innerText = "Editar Registro";
+                document.getElementById('text-submit-form').innerText = "Atualizar Registro";
+                toggleModal('abrir');
+            }, 300);
+        }
+
+        window.onload = initData;
+    </script>
+</body>
+</html>
