@@ -62,13 +62,16 @@
 
         <form id="form-login" onsubmit="entrarUsuario(event)" class="relative z-10 space-y-4">
             <input type="email" id="login-email" required placeholder="voce@email.com" class="w-full bg-surface border border-borderMain rounded-xl py-3 px-4 text-white text-sm focus:border-brand-yellow outline-none">
+            <input type="password" id="login-senha" required placeholder="Senha" class="w-full bg-surface border border-borderMain rounded-xl py-3 px-4 text-white text-sm focus:border-brand-yellow outline-none">
             <button class="w-full bg-brand-yellow hover:bg-brand-yellowHover text-black font-bold py-3.5 rounded-xl transition-all active:scale-95">Entrar</button>
+            <button type="button" onclick="recuperarSenha()" class="w-full text-xs font-bold text-zinc-400 hover:text-brand-yellow transition-colors">Esqueci a senha</button>
         </form>
 
         <form id="form-cadastro-usuario" onsubmit="cadastrarUsuario(event)" class="relative z-10 hidden space-y-4 overflow-y-auto pb-4">
             <div class="grid grid-cols-2 gap-3">
                 <input id="cad-nome" required placeholder="Nome completo" class="col-span-2 bg-surface border border-borderMain rounded-xl py-3 px-4 text-white text-sm outline-none focus:border-brand-yellow">
                 <input id="cad-email" required type="email" placeholder="E-mail" class="col-span-2 bg-surface border border-borderMain rounded-xl py-3 px-4 text-white text-sm outline-none focus:border-brand-yellow">
+                <input id="cad-senha" required type="password" minlength="4" placeholder="Senha" class="col-span-2 bg-surface border border-borderMain rounded-xl py-3 px-4 text-white text-sm outline-none focus:border-brand-yellow">
                 <input id="cad-telefone" placeholder="Telefone" class="bg-surface border border-borderMain rounded-xl py-3 px-4 text-white text-sm outline-none focus:border-brand-yellow">
                 <input id="cad-nascimento" type="date" class="bg-surface border border-borderMain rounded-xl py-3 px-4 text-white text-sm outline-none focus:border-brand-yellow [&::-webkit-calendar-picker-indicator]:invert-[0.8]">
                 <input id="cad-cargo" placeholder="Cargo/profissao" class="col-span-2 bg-surface border border-borderMain rounded-xl py-3 px-4 text-white text-sm outline-none focus:border-brand-yellow">
@@ -363,6 +366,7 @@
                 <form onsubmit="salvarPerfil(event)" class="grid grid-cols-2 gap-3 bg-background/60 border border-borderMain rounded-xl p-3">
                     <input id="perfil-nome" required placeholder="Nome completo" class="col-span-2 bg-surface border border-borderMain rounded-xl py-2.5 px-3 text-white text-sm outline-none focus:border-brand-yellow">
                     <input id="perfil-email" required type="email" placeholder="E-mail" class="col-span-2 bg-surface border border-borderMain rounded-xl py-2.5 px-3 text-white text-sm outline-none focus:border-brand-yellow">
+                    <input id="perfil-senha" type="password" minlength="4" placeholder="Nova senha" class="col-span-2 bg-surface border border-borderMain rounded-xl py-2.5 px-3 text-white text-sm outline-none focus:border-brand-yellow">
                     <input id="perfil-telefone" placeholder="Telefone" class="bg-surface border border-borderMain rounded-xl py-2.5 px-3 text-white text-sm outline-none focus:border-brand-yellow">
                     <input id="perfil-nascimento" type="date" class="bg-surface border border-borderMain rounded-xl py-2.5 px-3 text-white text-sm outline-none focus:border-brand-yellow [&::-webkit-calendar-picker-indicator]:invert-[0.8]">
                     <input id="perfil-cargo" placeholder="Cargo/profissao" class="col-span-2 bg-surface border border-borderMain rounded-xl py-2.5 px-3 text-white text-sm outline-none focus:border-brand-yellow">
@@ -442,8 +446,12 @@
         const categoriasIcons = {
             'Alimentação': 'utensils', 'Transporte': 'car', 'Moradia': 'home',
             'Saúde': 'activity', 'Mercado': 'shopping-cart', 'Assinaturas': 'monitor-play',
-            'Lazer': 'gamepad-2', 'Outros': 'tag', 'Receita': 'arrow-down-left'
+            'Lazer': 'gamepad-2', 'Outros': 'tag', 'Receita': 'arrow-down-left',
+            'Salário': 'wallet', 'Bônus': 'sparkles', 'Décimo terceiro': 'calendar-plus',
+            'Rescisão': 'file-minus', 'Empréstimo': 'hand-coins', 'FGTS': 'landmark'
         };
+        const categoriasDespesa = ['Alimentação', 'Transporte', 'Moradia', 'Saúde', 'Mercado', 'Assinaturas', 'Lazer', 'Outros'];
+        const categoriasReceita = ['Salário', 'Bônus', 'Décimo terceiro', 'Rescisão', 'Empréstimo', 'FGTS', 'Outros'];
 
         const formatarMoeda = (val) => val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
         const formatarData = (dataStr) => dataStr.split('-').reverse().slice(0, 2).join('/'); // DD/MM
@@ -487,11 +495,21 @@
                 : 'flex-1 py-2 text-sm font-bold rounded-lg text-zinc-500 hover:text-zinc-300';
         }
 
+        function preencherCategorias(tipo, valorSelecionado = '') {
+            const catSelect = document.getElementById('input-categoria');
+            const categorias = tipo === 'receita' ? categoriasReceita : categoriasDespesa;
+            catSelect.innerHTML = categorias.map(cat => `<option value="${cat}">${cat}</option>`).join('');
+            catSelect.value = categorias.includes(valorSelecionado) ? valorSelecionado : categorias[0];
+        }
+
         function lerPerfilCadastro(prefixo) {
+            const senhaInput = document.getElementById(`${prefixo}-senha`);
+            const senha = senhaInput ? senhaInput.value.trim() : '';
             return {
                 id: criarIdUsuario(document.getElementById(`${prefixo}-email`).value),
                 nome: document.getElementById(`${prefixo}-nome`).value.trim(),
                 email: normalizarEmail(document.getElementById(`${prefixo}-email`).value),
+                senha,
                 telefone: document.getElementById(`${prefixo}-telefone`).value.trim(),
                 nascimento: document.getElementById(`${prefixo}-nascimento`).value,
                 cargo: document.getElementById(`${prefixo}-cargo`).value.trim(),
@@ -510,6 +528,7 @@
             event.preventDefault();
             const perfil = lerPerfilCadastro('cad');
             if(!perfil.email || !perfil.nome) { showToast('Nome e e-mail sao obrigatorios.'); return; }
+            if(!perfil.senha || perfil.senha.length < 4) { showToast('Informe uma senha com pelo menos 4 caracteres.'); return; }
             if(usuarios.some(u => u.email === perfil.email)) { showToast('Este e-mail ja tem cadastro.'); return; }
             usuarios.push(perfil);
             salvarUsuarios();
@@ -521,11 +540,23 @@
         function entrarUsuario(event) {
             event.preventDefault();
             const email = normalizarEmail(document.getElementById('login-email').value);
+            const senha = document.getElementById('login-senha').value.trim();
             const usuario = usuarios.find(u => u.email === email);
             if(!usuario) { showToast('Usuario nao encontrado. Cadastre um novo perfil.'); return; }
+            if(usuario.senha && usuario.senha !== senha) { showToast('Senha incorreta.'); return; }
             usuarioAtual = usuario;
             localStorage.setItem('finances_current_user_v1', usuario.id);
             iniciarAppUsuario();
+            if(!usuario.senha) showToast('Perfil antigo sem senha. Defina uma senha no perfil.');
+        }
+
+        function recuperarSenha() {
+            const email = normalizarEmail(document.getElementById('login-email').value);
+            if(!email) { showToast('Digite seu e-mail para recuperar a senha.'); return; }
+            const usuario = usuarios.find(u => u.email === email);
+            if(!usuario) { showToast('E-mail nao encontrado.'); return; }
+            if(!usuario.senha) { showToast('Este perfil ainda nao tem senha cadastrada.'); return; }
+            showToast(`Senha cadastrada: ${usuario.senha}`);
         }
 
         function sairUsuario() {
@@ -638,18 +669,18 @@
                 receitasAuto.push({
                     id: `${baseId}_adiantamento`, auto_user_id: usuarioAtual.id, auto_mes: `${anoAtual}-${mesAtual + 1}`,
                     tipo: 'receita', descricao: 'Adiantamento automatico', valor: usuarioAtual.salario * 0.4,
-                    data: dataNoMes(usuarioAtual.diaAdiantamento), status_pagamento: true, categoria: 'Receita'
+                    data: dataNoMes(usuarioAtual.diaAdiantamento), status_pagamento: true, categoria: 'Salário'
                 });
                 receitasAuto.push({
                     id: `${baseId}_pagamento`, auto_user_id: usuarioAtual.id, auto_mes: `${anoAtual}-${mesAtual + 1}`,
                     tipo: 'receita', descricao: 'Pagamento automatico', valor: usuarioAtual.salario * 0.6,
-                    data: dataNoMes(usuarioAtual.diaPagamento), status_pagamento: true, categoria: 'Receita'
+                    data: dataNoMes(usuarioAtual.diaPagamento), status_pagamento: true, categoria: 'Salário'
                 });
             } else {
                 receitasAuto.push({
                     id: `${baseId}_salario`, auto_user_id: usuarioAtual.id, auto_mes: `${anoAtual}-${mesAtual + 1}`,
                     tipo: 'receita', descricao: 'Salario automatico', valor: usuarioAtual.salario,
-                    data: dataNoMes(usuarioAtual.diaPagamento), status_pagamento: true, categoria: 'Receita'
+                    data: dataNoMes(usuarioAtual.diaPagamento), status_pagamento: true, categoria: 'Salário'
                 });
             }
             despesas.push(...receitasAuto);
@@ -801,7 +832,7 @@
                                     <span class="font-extrabold text-white text-sm">${formatarMoeda(valorCalc)}</span>
                                 </div>
                             </div>
-                            <button onclick="marcarComoPago(${item.id})" class="w-full bg-zinc-800 hover:bg-brand-yellow text-zinc-300 hover:text-black font-bold py-2.5 rounded-xl transition-all duration-300 flex items-center justify-center gap-2 text-sm border border-zinc-700 hover:border-brand-yellow active:scale-95">
+                            <button id="btn-pay-${item.id}" onclick="confirmarPagamento('${item.id}')" class="w-full bg-zinc-800 hover:bg-brand-yellow text-zinc-300 hover:text-black font-bold py-2.5 rounded-xl transition-all duration-300 flex items-center justify-center gap-2 text-sm border border-zinc-700 hover:border-brand-yellow active:scale-95">
                                 <i data-lucide="check" class="w-4 h-4"></i> Pagar
                             </button>
                         </div>
@@ -897,6 +928,24 @@
             });
         }
 
+        let idPagamentoPendente = null;
+        function confirmarPagamento(id) {
+            const btn = document.getElementById(`btn-pay-${id}`);
+            if(!btn) return;
+            if(idPagamentoPendente === id) {
+                idPagamentoPendente = null;
+                marcarComoPago(id);
+            } else {
+                if(idPagamentoPendente && document.getElementById(`btn-pay-${idPagamentoPendente}`)) {
+                    document.getElementById(`btn-pay-${idPagamentoPendente}`).innerHTML = '<i data-lucide="check" class="w-4 h-4"></i> Pagar';
+                }
+                idPagamentoPendente = id;
+                btn.innerHTML = '<i data-lucide="alert-triangle" class="w-4 h-4"></i> Confirmar pagamento';
+                lucide.createIcons();
+                setTimeout(() => { if(idPagamentoPendente === id) { idPagamentoPendente = null; renderizarDashboard(); } }, 3000);
+            }
+        }
+
         function marcarComoPago(id) {
             const card = document.getElementById(`card-${id}`);
             if(card) { card.style.transform = 'scale(0.95)'; card.style.opacity = '0.5'; }
@@ -953,14 +1002,15 @@
                 document.getElementById('btn-tipo-receita').className = 'flex-1 py-2 text-sm font-bold rounded-lg text-zinc-500 hover:text-zinc-300';
                 areaDespesa.classList.remove('hidden');
                 campoReceita.classList.add('hidden');
+                preencherCategorias('despesa', catSelect.value);
                 catSelect.disabled = false;
             } else {
                 document.getElementById('btn-tipo-receita').className = 'flex-1 py-2 text-sm font-bold rounded-lg bg-surface text-white shadow-sm border border-borderMain';
                 document.getElementById('btn-tipo-despesa').className = 'flex-1 py-2 text-sm font-bold rounded-lg text-zinc-500 hover:text-zinc-300';
                 areaDespesa.classList.add('hidden');
                 if(!registoEmEdicao) campoReceita.classList.remove('hidden');
-                catSelect.value = 'Outros'; 
-                catSelect.disabled = true; // Receitas simplificadas por agora
+                preencherCategorias('receita', catSelect.value);
+                catSelect.disabled = false;
             }
         }
 
@@ -1032,7 +1082,7 @@
                     } else {
                        item.valor = valor;
                     }
-                    if(tipoRegistoAtual === 'despesa') item.categoria = categoria;
+                    item.categoria = categoria;
                     });
                 }
                 showToast('Registro atualizado!');
@@ -1047,12 +1097,12 @@
                             novosRegistros.push({
                                 id: Date.now() + i, parent_id: parentId, tipo: 'receita',
                                 descricao, valor, data: adicionarMesDate(data, i - mesInicial),
-                                status_pagamento: true, categoria: 'Receita'
+                                status_pagamento: true, categoria
                             });
                         }
                     } else {
                         novosRegistros.push({
-                            id: Date.now(), tipo: 'receita', descricao, valor, data, status_pagamento: true, categoria: 'Receita'
+                            id: Date.now(), tipo: 'receita', descricao, valor, data, status_pagamento: true, categoria
                         });
                     }
                 } else {
@@ -1127,6 +1177,7 @@
             if(!usuarioAtual) return;
             document.getElementById('perfil-nome').value = usuarioAtual.nome || '';
             document.getElementById('perfil-email').value = usuarioAtual.email || '';
+            document.getElementById('perfil-senha').value = '';
             document.getElementById('perfil-telefone').value = usuarioAtual.telefone || '';
             document.getElementById('perfil-nascimento').value = usuarioAtual.nascimento || '';
             document.getElementById('perfil-cargo').value = usuarioAtual.cargo || '';
@@ -1144,6 +1195,7 @@
             event.preventDefault();
             const perfilAtualizado = lerPerfilCadastro('perfil');
             perfilAtualizado.id = usuarioAtual.id;
+            perfilAtualizado.senha = perfilAtualizado.senha || usuarioAtual.senha || '';
             usuarioAtual = perfilAtualizado;
             const idx = usuarios.findIndex(u => u.id === usuarioAtual.id);
             if(idx >= 0) usuarios[idx] = usuarioAtual;
@@ -1418,6 +1470,7 @@
                 
                 if(despesa.tipo === 'receita') {
                     document.getElementById('input-valor').value = despesa.valor;
+                    document.getElementById('input-categoria').value = despesa.categoria || 'Outros';
                 } else {
                     document.getElementById('input-categoria').value = despesa.categoria;
                     if (despesa.tipo === 'cartao') {
