@@ -45,7 +45,49 @@
 </head>
 <body class="bg-background text-zinc-100 font-sans antialiased min-h-screen pb-28 selection:bg-brand-yellow selection:text-black">
 
-    <main class="max-w-md mx-auto min-h-screen bg-background relative overflow-hidden flex flex-col">
+    <section id="auth-screen" class="max-w-md mx-auto min-h-screen bg-background relative overflow-hidden flex flex-col px-6 pt-12 pb-8">
+        <div class="absolute top-[-10%] left-[-10%] w-[120%] h-[35%] bg-brand-yellow/5 blur-[100px] rounded-full pointer-events-none"></div>
+        <div class="relative z-10 mb-8">
+            <div class="w-12 h-12 rounded-2xl bg-brand-yellow text-black flex items-center justify-center mb-5 shadow-glow">
+                <i data-lucide="wallet-cards" class="w-6 h-6"></i>
+            </div>
+            <h1 class="text-3xl font-extrabold tracking-tight text-white">Onix Finan</h1>
+            <p class="text-sm text-zinc-400 mt-2">Entre com seu e-mail ou crie um perfil para manter dados financeiros separados neste navegador.</p>
+        </div>
+
+        <div class="relative z-10 flex bg-zinc-900/50 p-1 rounded-xl border border-zinc-800/50 mb-5">
+            <button type="button" id="btn-auth-login" onclick="setAuthMode('login')" class="flex-1 py-2 text-sm font-bold rounded-lg bg-surface text-white shadow-sm border border-borderMain">Entrar</button>
+            <button type="button" id="btn-auth-cadastro" onclick="setAuthMode('cadastro')" class="flex-1 py-2 text-sm font-bold rounded-lg text-zinc-500 hover:text-zinc-300">Cadastro</button>
+        </div>
+
+        <form id="form-login" onsubmit="entrarUsuario(event)" class="relative z-10 space-y-4">
+            <input type="email" id="login-email" required placeholder="voce@email.com" class="w-full bg-surface border border-borderMain rounded-xl py-3 px-4 text-white text-sm focus:border-brand-yellow outline-none">
+            <button class="w-full bg-brand-yellow hover:bg-brand-yellowHover text-black font-bold py-3.5 rounded-xl transition-all active:scale-95">Entrar</button>
+        </form>
+
+        <form id="form-cadastro-usuario" onsubmit="cadastrarUsuario(event)" class="relative z-10 hidden space-y-4 overflow-y-auto pb-4">
+            <div class="grid grid-cols-2 gap-3">
+                <input id="cad-nome" required placeholder="Nome completo" class="col-span-2 bg-surface border border-borderMain rounded-xl py-3 px-4 text-white text-sm outline-none focus:border-brand-yellow">
+                <input id="cad-email" required type="email" placeholder="E-mail" class="col-span-2 bg-surface border border-borderMain rounded-xl py-3 px-4 text-white text-sm outline-none focus:border-brand-yellow">
+                <input id="cad-telefone" placeholder="Telefone" class="bg-surface border border-borderMain rounded-xl py-3 px-4 text-white text-sm outline-none focus:border-brand-yellow">
+                <input id="cad-nascimento" type="date" class="bg-surface border border-borderMain rounded-xl py-3 px-4 text-white text-sm outline-none focus:border-brand-yellow [&::-webkit-calendar-picker-indicator]:invert-[0.8]">
+                <input id="cad-cargo" placeholder="Cargo/profissao" class="col-span-2 bg-surface border border-borderMain rounded-xl py-3 px-4 text-white text-sm outline-none focus:border-brand-yellow">
+                <input id="cad-salario" type="number" min="0" step="0.01" placeholder="Salario mensal" class="bg-surface border border-borderMain rounded-xl py-3 px-4 text-white text-sm outline-none focus:border-brand-yellow">
+                <input id="cad-dia-pagamento" type="number" min="1" max="31" placeholder="Dia pagamento" class="bg-surface border border-borderMain rounded-xl py-3 px-4 text-white text-sm outline-none focus:border-brand-yellow">
+                <input id="cad-dia-adiantamento" type="number" min="1" max="31" placeholder="Dia adiantamento" class="bg-surface border border-borderMain rounded-xl py-3 px-4 text-white text-sm outline-none focus:border-brand-yellow">
+                <input id="cad-meta" type="number" min="0" step="0.01" placeholder="Meta economia" class="bg-surface border border-borderMain rounded-xl py-3 px-4 text-white text-sm outline-none focus:border-brand-yellow">
+                <input id="cad-avatar" placeholder="URL da foto/avatar" class="col-span-2 bg-surface border border-borderMain rounded-xl py-3 px-4 text-white text-sm outline-none focus:border-brand-yellow">
+                <input id="cad-cidade" placeholder="Cidade" class="bg-surface border border-borderMain rounded-xl py-3 px-4 text-white text-sm outline-none focus:border-brand-yellow">
+                <input id="cad-estado" placeholder="Estado" class="bg-surface border border-borderMain rounded-xl py-3 px-4 text-white text-sm outline-none focus:border-brand-yellow">
+                <select id="cad-moeda" class="col-span-2 bg-surface border border-borderMain rounded-xl py-3 px-4 text-white text-sm outline-none focus:border-brand-yellow">
+                    <option value="BRL">BRL - Real brasileiro</option>
+                </select>
+            </div>
+            <button class="w-full bg-brand-yellow hover:bg-brand-yellowHover text-black font-bold py-3.5 rounded-xl transition-all active:scale-95">Criar perfil</button>
+        </form>
+    </section>
+
+    <main id="app-shell" class="hidden max-w-md mx-auto min-h-screen bg-background relative overflow-hidden flex flex-col">
         <!-- Glow top -->
         <div class="absolute top-[-10%] left-[-10%] w-[120%] h-[40%] bg-brand-yellow/5 blur-[100px] rounded-full pointer-events-none"></div>
 
@@ -53,15 +95,18 @@
             <div class="flex justify-between items-center mb-6">
                 <div class="flex items-center gap-3">
                     <div class="relative">
-                        <img src="https://i.pravatar.cc/150?img=11" alt="Perfil" class="w-11 h-11 rounded-full border-2 border-surface object-cover">
+                        <img id="avatar-usuario" src="https://i.pravatar.cc/150?img=11" alt="Perfil" class="w-11 h-11 rounded-full border-2 border-surface object-cover">
                         <div class="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-background rounded-full"></div>
                     </div>
                     <div>
-                        <p class="text-xs text-zinc-400 font-medium">Olá, João!</p>
+                        <p class="text-xs text-zinc-400 font-medium" id="saudacao-usuario">Ola!</p>
                         <p class="text-sm font-bold tracking-tight">Painel Financeiro</p>
                     </div>
                 </div>
                 <div class="flex space-x-2 bg-surface p-1 rounded-full border border-borderMain">
+                    <button onclick="sairUsuario()" class="p-2 rounded-full hover:bg-surfaceHover text-zinc-400 hover:text-white transition-colors">
+                        <i data-lucide="log-out" class="w-4 h-4"></i>
+                    </button>
                     <button onclick="abrirGestao()" class="p-2 rounded-full hover:bg-surfaceHover text-zinc-400 hover:text-white transition-colors">
                         <i data-lucide="settings-2" class="w-4 h-4"></i>
                     </button>
@@ -81,10 +126,10 @@
 
                 <div>
                     <p class="text-zinc-400 text-sm font-medium mb-1 flex items-center gap-2">
-                        Saldo Atual <i data-lucide="eye" id="icone-olho" onclick="togglePrivacidade()" class="w-4 h-4 cursor-pointer hover:text-zinc-200"></i>
+                        Saldo atual pago <i data-lucide="eye" id="icone-olho" onclick="togglePrivacidade()" class="w-4 h-4 cursor-pointer hover:text-zinc-200"></i>
                     </p>
                     <h1 class="text-4xl font-extrabold tracking-tight text-white mb-2" id="valor-saldo">R$ 0,00</h1>
-                    <p class="text-xs font-medium text-zinc-500" id="saldo-apos-pendentes">Após pagar pendentes: R$ 0,00</p>
+                    <p class="text-xs font-medium text-zinc-500" id="saldo-apos-pendentes">Projetado após pendentes: R$ 0,00</p>
                 </div>
                 
                 <!-- Grid Analítico -->
@@ -230,7 +275,8 @@
                         <div class="flex gap-4">
                             <div class="flex-1">
                                 <label class="block text-xs font-medium text-zinc-400 mb-1.5 ml-1">Nome do Cartão</label>
-                                <input type="text" id="input-cartao-nome" placeholder="Ex: Nubank" class="w-full bg-background border border-borderMain rounded-xl py-3 px-4 text-white text-sm focus:border-brand-yellow outline-none">
+                                <input type="text" id="input-cartao-nome" list="cartoes-options" placeholder="Ex: Nubank" class="w-full bg-background border border-borderMain rounded-xl py-3 px-4 text-white text-sm focus:border-brand-yellow outline-none">
+                                <datalist id="cartoes-options"></datalist>
                             </div>
                             <div class="w-1/3">
                                 <label class="block text-xs font-medium text-zinc-400 mb-1.5 ml-1">Parcelas</label>
@@ -247,6 +293,28 @@
                             <span class="text-sm font-medium text-zinc-400 group-hover:text-zinc-300">Repetir mensalmente até Dezembro</span>
                         </label>
                     </div>
+                </div>
+
+                <div id="campo-repetir-receita" class="hidden pt-2 border-t border-borderMain/50">
+                    <label class="flex items-center gap-2 cursor-pointer group">
+                        <input type="checkbox" id="input-repetir-receita" class="w-4 h-4 rounded border-borderMain text-brand-yellow focus:ring-brand-yellow bg-background">
+                        <span class="text-sm font-medium text-zinc-400 group-hover:text-zinc-300">Repetir receita mensalmente ate Dezembro</span>
+                    </label>
+                </div>
+
+                <div id="campo-edicao-lote" class="hidden space-y-2 pt-2 border-t border-borderMain/50">
+                    <label class="block text-xs font-medium text-zinc-400 ml-1">Aplicar edicao</label>
+                    <div class="grid grid-cols-2 gap-3">
+                        <label class="flex cursor-pointer items-center justify-center rounded-xl border border-brand-yellow bg-brand-yellow/10 p-3">
+                            <input type="radio" name="escopo_edicao" value="esta" checked class="sr-only">
+                            <span class="text-xs font-bold text-brand-yellow">So esta</span>
+                        </label>
+                        <label class="flex cursor-pointer items-center justify-center rounded-xl border border-borderMain bg-background p-3">
+                            <input type="radio" name="escopo_edicao" value="futuras" class="sr-only">
+                            <span class="text-xs font-bold text-zinc-400">Futuras</span>
+                        </label>
+                    </div>
+                    <p class="text-[10px] text-zinc-500">Para parcelas ou registros repetidos, futuras altera este mes e os proximos do mesmo grupo.</p>
                 </div>
 
                 <button type="submit" id="btn-submit-form" class="w-full bg-brand-yellow hover:bg-brand-yellowHover text-black font-bold py-3.5 rounded-xl transition-all active:scale-95 flex items-center justify-center gap-2 text-sm mt-6">
@@ -266,6 +334,17 @@
                 <button onclick="fecharGestao()" class="p-2 rounded-full bg-zinc-800 text-zinc-400"><i data-lucide="x" class="w-4 h-4"></i></button>
             </div>
 
+            <div class="grid grid-cols-6 gap-1 bg-background/70 border border-borderMain rounded-xl p-1 mb-4">
+                <button onclick="trocarAbaGestao('registros')" id="tab-registros" class="py-2 rounded-lg text-[10px] font-bold bg-surface text-white">Registros</button>
+                <button onclick="trocarAbaGestao('perfil')" id="tab-perfil" class="py-2 rounded-lg text-[10px] font-bold text-zinc-500">Perfil</button>
+                <button onclick="trocarAbaGestao('cartoes')" id="tab-cartoes" class="py-2 rounded-lg text-[10px] font-bold text-zinc-500">Cartoes</button>
+                <button onclick="trocarAbaGestao('relatorios')" id="tab-relatorios" class="py-2 rounded-lg text-[10px] font-bold text-zinc-500">Relatorios</button>
+                <button onclick="trocarAbaGestao('metas')" id="tab-metas" class="py-2 rounded-lg text-[10px] font-bold text-zinc-500">Metas</button>
+                <button onclick="trocarAbaGestao('backup')" id="tab-backup" class="py-2 rounded-lg text-[10px] font-bold text-zinc-500">Backup</button>
+            </div>
+
+            <div id="painel-registros" class="flex-1 overflow-y-auto">
+
             <!-- Filtros e Busca -->
             <div class="space-y-3 mb-4">
                 <input type="text" id="busca-gestao" placeholder="Buscar por descrição..." oninput="renderizarListaGestao()" class="w-full bg-background border border-borderMain rounded-xl py-2.5 px-4 text-white text-sm focus:border-brand-yellow outline-none">
@@ -278,6 +357,76 @@
             </div>
 
             <div id="lista-gestao" class="space-y-2 flex-1 overflow-y-auto pb-4"></div>
+            </div>
+
+            <div id="painel-perfil" class="hidden space-y-4 overflow-y-auto pb-4">
+                <form onsubmit="salvarPerfil(event)" class="grid grid-cols-2 gap-3 bg-background/60 border border-borderMain rounded-xl p-3">
+                    <input id="perfil-nome" required placeholder="Nome completo" class="col-span-2 bg-surface border border-borderMain rounded-xl py-2.5 px-3 text-white text-sm outline-none focus:border-brand-yellow">
+                    <input id="perfil-email" required type="email" placeholder="E-mail" class="col-span-2 bg-surface border border-borderMain rounded-xl py-2.5 px-3 text-white text-sm outline-none focus:border-brand-yellow">
+                    <input id="perfil-telefone" placeholder="Telefone" class="bg-surface border border-borderMain rounded-xl py-2.5 px-3 text-white text-sm outline-none focus:border-brand-yellow">
+                    <input id="perfil-nascimento" type="date" class="bg-surface border border-borderMain rounded-xl py-2.5 px-3 text-white text-sm outline-none focus:border-brand-yellow [&::-webkit-calendar-picker-indicator]:invert-[0.8]">
+                    <input id="perfil-cargo" placeholder="Cargo/profissao" class="col-span-2 bg-surface border border-borderMain rounded-xl py-2.5 px-3 text-white text-sm outline-none focus:border-brand-yellow">
+                    <input id="perfil-salario" type="number" min="0" step="0.01" placeholder="Salario mensal" class="bg-surface border border-borderMain rounded-xl py-2.5 px-3 text-white text-sm outline-none focus:border-brand-yellow">
+                    <input id="perfil-dia-pagamento" type="number" min="1" max="31" placeholder="Dia pagamento" class="bg-surface border border-borderMain rounded-xl py-2.5 px-3 text-white text-sm outline-none focus:border-brand-yellow">
+                    <input id="perfil-dia-adiantamento" type="number" min="1" max="31" placeholder="Dia adiantamento" class="bg-surface border border-borderMain rounded-xl py-2.5 px-3 text-white text-sm outline-none focus:border-brand-yellow">
+                    <input id="perfil-meta" type="number" min="0" step="0.01" placeholder="Meta economia" class="bg-surface border border-borderMain rounded-xl py-2.5 px-3 text-white text-sm outline-none focus:border-brand-yellow">
+                    <input id="perfil-avatar" placeholder="URL da foto/avatar" class="col-span-2 bg-surface border border-borderMain rounded-xl py-2.5 px-3 text-white text-sm outline-none focus:border-brand-yellow">
+                    <input id="perfil-cidade" placeholder="Cidade" class="bg-surface border border-borderMain rounded-xl py-2.5 px-3 text-white text-sm outline-none focus:border-brand-yellow">
+                    <input id="perfil-estado" placeholder="Estado" class="bg-surface border border-borderMain rounded-xl py-2.5 px-3 text-white text-sm outline-none focus:border-brand-yellow">
+                    <select id="perfil-moeda" class="col-span-2 bg-surface border border-borderMain rounded-xl py-2.5 px-3 text-white text-sm outline-none focus:border-brand-yellow">
+                        <option value="BRL">BRL - Real brasileiro</option>
+                    </select>
+                    <button class="col-span-2 bg-brand-yellow text-black font-bold py-2.5 rounded-xl text-sm">Salvar perfil</button>
+                </form>
+                <div class="bg-surfaceHover border border-borderMain rounded-xl p-4">
+                    <p class="text-sm font-bold text-white mb-1">Receitas automaticas</p>
+                    <p class="text-xs text-zinc-500">Se houver dia de adiantamento, o app cria 40% do salario no adiantamento e 60% no pagamento. Sem adiantamento, cria o salario cheio no dia de pagamento.</p>
+                </div>
+            </div>
+
+            <div id="painel-cartoes" class="hidden space-y-4 overflow-y-auto pb-4">
+                <form onsubmit="salvarCartao(event)" class="grid grid-cols-2 gap-3 bg-background/60 border border-borderMain rounded-xl p-3">
+                    <input type="hidden" id="cartao-id">
+                    <input id="cartao-nome" required placeholder="Nome do cartao" class="col-span-2 bg-surface border border-borderMain rounded-xl py-2.5 px-3 text-white text-sm outline-none focus:border-brand-yellow">
+                    <input id="cartao-limite" required type="number" min="0" step="0.01" placeholder="Limite" class="bg-surface border border-borderMain rounded-xl py-2.5 px-3 text-white text-sm outline-none focus:border-brand-yellow">
+                    <input id="cartao-fechamento" required type="number" min="1" max="31" placeholder="Fecha dia" class="bg-surface border border-borderMain rounded-xl py-2.5 px-3 text-white text-sm outline-none focus:border-brand-yellow">
+                    <input id="cartao-vencimento" required type="number" min="1" max="31" placeholder="Vence dia" class="bg-surface border border-borderMain rounded-xl py-2.5 px-3 text-white text-sm outline-none focus:border-brand-yellow">
+                    <button class="bg-brand-yellow text-black font-bold rounded-xl text-sm">Salvar</button>
+                </form>
+                <div id="lista-cartoes" class="space-y-3"></div>
+            </div>
+
+            <div id="painel-relatorios" class="hidden space-y-3 overflow-y-auto pb-4"></div>
+
+            <div id="painel-metas" class="hidden space-y-4 overflow-y-auto pb-4">
+                <div class="bg-background/60 border border-borderMain rounded-xl p-3">
+                    <label class="block text-xs font-medium text-zinc-400 mb-1.5">Meta de economia mensal</label>
+                    <input id="meta-economia" type="number" min="0" step="0.01" oninput="salvarMetas()" placeholder="0,00" class="w-full bg-surface border border-borderMain rounded-xl py-2.5 px-3 text-white text-sm outline-none focus:border-brand-yellow">
+                </div>
+                <div class="bg-background/60 border border-borderMain rounded-xl p-3">
+                    <p class="text-xs font-bold text-zinc-300 mb-3">Limite por categoria</p>
+                    <div id="lista-metas-categorias" class="space-y-2"></div>
+                </div>
+                <div id="alertas-metas" class="space-y-2"></div>
+            </div>
+
+            <div id="painel-backup" class="hidden space-y-3 overflow-y-auto pb-4">
+                <div class="bg-background/60 border border-borderMain rounded-xl p-4">
+                    <p class="text-sm font-bold text-white mb-1">Backup local</p>
+                    <p class="text-xs text-zinc-500 mb-3">Exporta registros, cartoes e metas em JSON para restaurar em outro navegador.</p>
+                    <div class="grid grid-cols-2 gap-3">
+                        <button onclick="exportarBackup()" class="bg-brand-yellow text-black font-bold py-2.5 rounded-xl text-sm">Exportar</button>
+                        <label class="bg-surfaceHover text-zinc-200 font-bold py-2.5 rounded-xl text-sm text-center cursor-pointer">
+                            Importar
+                            <input type="file" accept="application/json" onchange="importarBackup(event)" class="hidden">
+                        </label>
+                    </div>
+                </div>
+                <div class="bg-surfaceHover border border-borderMain rounded-xl p-4">
+                    <p class="text-sm font-bold text-white mb-1">Proximo passo: Supabase</p>
+                    <p class="text-xs text-zinc-500">O app ja centraliza os dados em objetos exportaveis. Com URL e anon key do Supabase, da para trocar o localStorage por sincronizacao em nuvem.</p>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -304,17 +453,129 @@
         let mesAtual = dataAtual.getMonth(); // 0 a 11
         let anoAtual = dataAtual.getFullYear();
         let despesas = [];
+        let cartoes = [];
+        let metas = { economiaMensal: 0, limitesCategoria: {} };
+        let usuarios = [];
+        let usuarioAtual = null;
+        let abaGestaoAtual = 'registros';
         let valoresOcultos = false;
         let registoEmEdicao = null;
         let itemExcluidoRecentemente = null;
         let timeoutUndo = null;
 
+        // Usuários e sessão local
+        const normalizarEmail = (email) => (email || '').trim().toLowerCase();
+        const criarIdUsuario = (email) => normalizarEmail(email).replace(/[^a-z0-9]+/g, '_');
+        const chaveUsuario = (sufixo) => `${sufixo}_${usuarioAtual?.id || 'anon'}`;
+
+        function carregarUsuarios() {
+            usuarios = JSON.parse(localStorage.getItem('finances_users_v1') || '[]');
+        }
+
+        function salvarUsuarios() {
+            localStorage.setItem('finances_users_v1', JSON.stringify(usuarios));
+        }
+
+        function setAuthMode(modo) {
+            document.getElementById('form-login').classList.toggle('hidden', modo !== 'login');
+            document.getElementById('form-cadastro-usuario').classList.toggle('hidden', modo !== 'cadastro');
+            document.getElementById('btn-auth-login').className = modo === 'login'
+                ? 'flex-1 py-2 text-sm font-bold rounded-lg bg-surface text-white shadow-sm border border-borderMain'
+                : 'flex-1 py-2 text-sm font-bold rounded-lg text-zinc-500 hover:text-zinc-300';
+            document.getElementById('btn-auth-cadastro').className = modo === 'cadastro'
+                ? 'flex-1 py-2 text-sm font-bold rounded-lg bg-surface text-white shadow-sm border border-borderMain'
+                : 'flex-1 py-2 text-sm font-bold rounded-lg text-zinc-500 hover:text-zinc-300';
+        }
+
+        function lerPerfilCadastro(prefixo) {
+            return {
+                id: criarIdUsuario(document.getElementById(`${prefixo}-email`).value),
+                nome: document.getElementById(`${prefixo}-nome`).value.trim(),
+                email: normalizarEmail(document.getElementById(`${prefixo}-email`).value),
+                telefone: document.getElementById(`${prefixo}-telefone`).value.trim(),
+                nascimento: document.getElementById(`${prefixo}-nascimento`).value,
+                cargo: document.getElementById(`${prefixo}-cargo`).value.trim(),
+                salario: parseFloat(document.getElementById(`${prefixo}-salario`).value) || 0,
+                diaPagamento: parseInt(document.getElementById(`${prefixo}-dia-pagamento`).value) || 5,
+                diaAdiantamento: parseInt(document.getElementById(`${prefixo}-dia-adiantamento`).value) || null,
+                metaEconomia: parseFloat(document.getElementById(`${prefixo}-meta`).value) || 0,
+                avatar: document.getElementById(`${prefixo}-avatar`).value.trim(),
+                cidade: document.getElementById(`${prefixo}-cidade`).value.trim(),
+                estado: document.getElementById(`${prefixo}-estado`).value.trim(),
+                moeda: document.getElementById(`${prefixo}-moeda`).value || 'BRL'
+            };
+        }
+
+        function cadastrarUsuario(event) {
+            event.preventDefault();
+            const perfil = lerPerfilCadastro('cad');
+            if(!perfil.email || !perfil.nome) { showToast('Nome e e-mail sao obrigatorios.'); return; }
+            if(usuarios.some(u => u.email === perfil.email)) { showToast('Este e-mail ja tem cadastro.'); return; }
+            usuarios.push(perfil);
+            salvarUsuarios();
+            localStorage.setItem('finances_current_user_v1', perfil.id);
+            usuarioAtual = perfil;
+            iniciarAppUsuario();
+        }
+
+        function entrarUsuario(event) {
+            event.preventDefault();
+            const email = normalizarEmail(document.getElementById('login-email').value);
+            const usuario = usuarios.find(u => u.email === email);
+            if(!usuario) { showToast('Usuario nao encontrado. Cadastre um novo perfil.'); return; }
+            usuarioAtual = usuario;
+            localStorage.setItem('finances_current_user_v1', usuario.id);
+            iniciarAppUsuario();
+        }
+
+        function sairUsuario() {
+            localStorage.removeItem('finances_current_user_v1');
+            usuarioAtual = null;
+            despesas = [];
+            cartoes = [];
+            metas = { economiaMensal: 0, limitesCategoria: {} };
+            document.getElementById('app-shell').classList.add('hidden');
+            document.getElementById('auth-screen').classList.remove('hidden');
+            lucide.createIcons();
+        }
+
+        function iniciarAuth() {
+            carregarUsuarios();
+            const idSessao = localStorage.getItem('finances_current_user_v1');
+            usuarioAtual = usuarios.find(u => u.id === idSessao) || null;
+            if(usuarioAtual) iniciarAppUsuario();
+            else {
+                document.getElementById('auth-screen').classList.remove('hidden');
+                document.getElementById('app-shell').classList.add('hidden');
+                lucide.createIcons();
+            }
+        }
+
+        function iniciarAppUsuario() {
+            document.getElementById('auth-screen').classList.add('hidden');
+            document.getElementById('app-shell').classList.remove('hidden');
+            initData();
+            atualizarCabecalhoUsuario();
+        }
+
+        function atualizarCabecalhoUsuario() {
+            if(!usuarioAtual) return;
+            const primeiroNome = usuarioAtual.nome.split(' ')[0] || 'Usuario';
+            document.getElementById('saudacao-usuario').innerText = `Ola, ${primeiroNome}!`;
+            document.getElementById('avatar-usuario').src = usuarioAtual.avatar || 'https://i.pravatar.cc/150?img=11';
+        }
+
         // Local Storage Init
         function initData() {
-            const localData = localStorage.getItem('finances_data_v2');
+            if(!usuarioAtual) return;
+            const localData = localStorage.getItem(chaveUsuario('finances_data_v2'));
+            const localCartoes = localStorage.getItem(chaveUsuario('finances_cards_v1'));
+            const localMetas = localStorage.getItem(chaveUsuario('finances_goals_v1'));
             if (localData) {
                 despesas = JSON.parse(localData);
             } else {
+                despesas = [];
+                /*
                 // Dados de demonstração em BRL
                 const dataDemo = `${anoAtual}-${String(mesAtual+1).padStart(2, '0')}`;
                 despesas = [
@@ -322,14 +583,28 @@
                     { id: Date.now()+2, tipo: 'padrao', descricao: 'Conta de Luz', valor: 185.50, data: `${dataDemo}-10`, status_pagamento: false, categoria: 'Moradia', icone: 'home' },
                     { id: Date.now()+3, tipo: 'cartao', cartao_nome: 'Nubank', descricao: 'Tênis Novo', valor_total: 450.00, quantidade_parcelas: 3, parcela_atual: 1, valor_parcela: 150.00, data: `${dataDemo}-15`, status_pagamento: false, categoria: 'Lazer', icone: 'gamepad-2', parent_id: 'grp1' }
                 ];
+                */
                 saveData();
             }
+            cartoes = localCartoes ? JSON.parse(localCartoes) : [];
+            metas = localMetas ? JSON.parse(localMetas) : { economiaMensal: usuarioAtual.metaEconomia || 0, limitesCategoria: {} };
+            metas.limitesCategoria = metas.limitesCategoria || {};
+            saveConfigData();
             atualizarLabelMes();
+            aplicarReceitasAutomaticas();
+            atualizarOpcoesCartoes();
             renderizarDashboard();
         }
 
         function saveData() {
-            localStorage.setItem('finances_data_v2', JSON.stringify(despesas));
+            if(!usuarioAtual) return;
+            localStorage.setItem(chaveUsuario('finances_data_v2'), JSON.stringify(despesas));
+        }
+
+        function saveConfigData() {
+            if(!usuarioAtual) return;
+            localStorage.setItem(chaveUsuario('finances_cards_v1'), JSON.stringify(cartoes));
+            localStorage.setItem(chaveUsuario('finances_goals_v1'), JSON.stringify(metas));
         }
 
         // Navegação de Meses
@@ -340,6 +615,7 @@
             if (mesAtual > 11) { mesAtual = 0; anoAtual++; }
             if (mesAtual < 0) { mesAtual = 11; anoAtual--; }
             atualizarLabelMes();
+            aplicarReceitasAutomaticas();
             renderizarDashboard();
         }
 
@@ -347,11 +623,69 @@
             document.getElementById('mes-atual').textContent = `${nomesMeses[mesAtual]} ${anoAtual}`;
         }
 
+        function dataNoMes(dia) {
+            const ultimoDia = new Date(anoAtual, mesAtual + 1, 0).getDate();
+            return `${anoAtual}-${String(mesAtual + 1).padStart(2, '0')}-${String(Math.min(Math.max(dia || 1, 1), ultimoDia)).padStart(2, '0')}`;
+        }
+
+        function aplicarReceitasAutomaticas() {
+            if(!usuarioAtual || !usuarioAtual.salario || !usuarioAtual.diaPagamento) return;
+            const baseId = `auto_${usuarioAtual.id}_${anoAtual}_${String(mesAtual + 1).padStart(2, '0')}`;
+            despesas = despesas.filter(d => !(d.auto_user_id === usuarioAtual.id && d.auto_mes === `${anoAtual}-${mesAtual + 1}`));
+            const temAdiantamento = usuarioAtual.diaAdiantamento && usuarioAtual.diaAdiantamento !== usuarioAtual.diaPagamento;
+            const receitasAuto = [];
+            if(temAdiantamento) {
+                receitasAuto.push({
+                    id: `${baseId}_adiantamento`, auto_user_id: usuarioAtual.id, auto_mes: `${anoAtual}-${mesAtual + 1}`,
+                    tipo: 'receita', descricao: 'Adiantamento automatico', valor: usuarioAtual.salario * 0.4,
+                    data: dataNoMes(usuarioAtual.diaAdiantamento), status_pagamento: true, categoria: 'Receita'
+                });
+                receitasAuto.push({
+                    id: `${baseId}_pagamento`, auto_user_id: usuarioAtual.id, auto_mes: `${anoAtual}-${mesAtual + 1}`,
+                    tipo: 'receita', descricao: 'Pagamento automatico', valor: usuarioAtual.salario * 0.6,
+                    data: dataNoMes(usuarioAtual.diaPagamento), status_pagamento: true, categoria: 'Receita'
+                });
+            } else {
+                receitasAuto.push({
+                    id: `${baseId}_salario`, auto_user_id: usuarioAtual.id, auto_mes: `${anoAtual}-${mesAtual + 1}`,
+                    tipo: 'receita', descricao: 'Salario automatico', valor: usuarioAtual.salario,
+                    data: dataNoMes(usuarioAtual.diaPagamento), status_pagamento: true, categoria: 'Receita'
+                });
+            }
+            despesas.push(...receitasAuto);
+            saveData();
+        }
+
         function getDespesasDoMes() {
             return despesas.filter(d => {
                 const parts = d.data.split('-');
                 return parseInt(parts[0]) === anoAtual && parseInt(parts[1]) === (mesAtual + 1);
             });
+        }
+
+        function valorDoRegistro(item) {
+            return item.tipo === 'cartao' ? item.valor_parcela : item.valor;
+        }
+
+        function getRegistrosPorMes(mes, ano) {
+            return despesas.filter(d => {
+                const parts = d.data.split('-');
+                return parseInt(parts[0]) === ano && parseInt(parts[1]) === (mes + 1);
+            });
+        }
+
+        function somarRegistros(registros) {
+            return registros.reduce((acc, item) => {
+                const valor = valorDoRegistro(item);
+                if (item.tipo === 'receita') acc.receitas += valor;
+                else {
+                    acc.despesas += valor;
+                    if (item.status_pagamento) acc.pago += valor;
+                    else acc.pendente += valor;
+                    acc.categorias[item.categoria] = (acc.categorias[item.categoria] || 0) + valor;
+                }
+                return acc;
+            }, { receitas: 0, despesas: 0, pago: 0, pendente: 0, categorias: {} });
         }
 
         // Toast Notifications
@@ -422,7 +756,7 @@
             }
 
             despesasMes.forEach((item, index) => {
-                const valorCalc = item.tipo === 'cartao' ? item.valor_parcela : item.valor;
+                const valorCalc = valorDoRegistro(item);
                 const isReceita = item.tipo === 'receita';
                 
                 if (isReceita) {
@@ -499,20 +833,20 @@
             badgePendentes.textContent = contagemPendentes;
 
             // Atualizar UI do Dashboard Financeiro
-            const saldoAtual = totalReceitas - totalDespesas;
-            const saldoAposPendentes = totalReceitas - totalPago - totalPendente; // Igual ao saldoAtual teoricamente, mas útil mentalmente
+            const saldoAtual = totalReceitas - totalPago;
+            const saldoAposPendentes = saldoAtual - totalPendente;
             const percentualGasto = totalReceitas > 0 ? ((totalDespesas / totalReceitas) * 100) : (totalDespesas > 0 ? 100 : 0);
 
             if (valoresOcultos) {
                 document.getElementById('valor-saldo').innerHTML = `R$ ••••`;
-                document.getElementById('saldo-apos-pendentes').innerText = `Após pagar pendentes: R$ ••••`;
+                document.getElementById('saldo-apos-pendentes').innerText = `Projetado após pendentes: R$ ••••`;
                 document.getElementById('valor-receitas').innerText = `R$ ••••`;
                 document.getElementById('valor-despesas').innerText = `R$ ••••`;
                 document.getElementById('valor-pendente').innerText = `R$ ••••`;
                 document.getElementById('valor-pago').innerText = `R$ ••••`;
             } else {
                 document.getElementById('valor-saldo').innerText = formatarMoeda(saldoAtual);
-                document.getElementById('saldo-apos-pendentes').innerText = `Após pagar pendentes: ${formatarMoeda(saldoAposPendentes)}`;
+                document.getElementById('saldo-apos-pendentes').innerText = `Projetado após pendentes: ${formatarMoeda(saldoAposPendentes)}`;
                 document.getElementById('valor-receitas').innerText = formatarMoeda(totalReceitas);
                 document.getElementById('valor-despesas').innerText = formatarMoeda(totalDespesas);
                 document.getElementById('valor-pendente').innerText = formatarMoeda(totalPendente);
@@ -528,6 +862,11 @@
 
             // Renderizar Gráfico
             renderizarGrafico(gastosPorCategoria, totalDespesas);
+            if(document.getElementById('modal-gestao-sheet') && !document.getElementById('modal-gestao-sheet').classList.contains('translate-y-full')) {
+                if(abaGestaoAtual === 'cartoes') renderizarCartoes();
+                if(abaGestaoAtual === 'relatorios') renderizarRelatorios();
+                if(abaGestaoAtual === 'metas') renderizarAlertasMetas();
+            }
 
             lucide.createIcons();
         }
@@ -562,7 +901,7 @@
             const card = document.getElementById(`card-${id}`);
             if(card) { card.style.transform = 'scale(0.95)'; card.style.opacity = '0.5'; }
             setTimeout(() => {
-                const index = despesas.findIndex(d => d.id === id);
+                const index = despesas.findIndex(d => String(d.id) === String(id));
                 if (index !== -1) {
                     despesas[index].status_pagamento = true;
                     saveData();
@@ -592,13 +931,14 @@
                     document.getElementById('input-cartao-nome').disabled = false;
                     document.getElementById('input-parcelas').disabled = false;
                     document.getElementById('campo-repetir').classList.remove('hidden');
+                    document.getElementById('campo-edicao-lote').classList.add('hidden');
                 }
                 backdrop.classList.remove('hidden');
                 setTimeout(() => { backdrop.classList.remove('opacity-0'); sheet.classList.remove('translate-y-full'); }, 10);
             } else {
                 backdrop.classList.add('opacity-0');
                 sheet.classList.add('translate-y-full');
-                setTimeout(() => { backdrop.classList.add('hidden'); registoEmEdicao = null; document.getElementById('form-cadastro').reset(); setTipoRegisto('despesa'); }, 400);
+                setTimeout(() => { backdrop.classList.add('hidden'); registoEmEdicao = null; document.getElementById('form-cadastro').reset(); document.getElementById('campo-edicao-lote').classList.add('hidden'); setTipoRegisto('despesa'); }, 400);
             }
         }
 
@@ -606,16 +946,19 @@
             tipoRegistoAtual = tipo;
             const areaDespesa = document.getElementById('area-opcoes-despesa');
             const catSelect = document.getElementById('input-categoria');
+            const campoReceita = document.getElementById('campo-repetir-receita');
             
             if (tipo === 'despesa') {
                 document.getElementById('btn-tipo-despesa').className = 'flex-1 py-2 text-sm font-bold rounded-lg bg-surface text-white shadow-sm border border-borderMain';
                 document.getElementById('btn-tipo-receita').className = 'flex-1 py-2 text-sm font-bold rounded-lg text-zinc-500 hover:text-zinc-300';
                 areaDespesa.classList.remove('hidden');
+                campoReceita.classList.add('hidden');
                 catSelect.disabled = false;
             } else {
                 document.getElementById('btn-tipo-receita').className = 'flex-1 py-2 text-sm font-bold rounded-lg bg-surface text-white shadow-sm border border-borderMain';
                 document.getElementById('btn-tipo-despesa').className = 'flex-1 py-2 text-sm font-bold rounded-lg text-zinc-500 hover:text-zinc-300';
                 areaDespesa.classList.add('hidden');
+                if(!registoEmEdicao) campoReceita.classList.remove('hidden');
                 catSelect.value = 'Outros'; 
                 catSelect.disabled = true; // Receitas simplificadas por agora
             }
@@ -662,31 +1005,56 @@
             if (valor <= 0 || isNaN(valor)) { showToast('O valor deve ser maior que zero.'); return; }
             if (!data) { showToast('Data inválida.'); return; }
 
-            const parentId = registoEmEdicao ? despesas.find(d => d.id === registoEmEdicao)?.parent_id : `grp_${Date.now()}`;
+            const parentId = registoEmEdicao ? despesas.find(d => String(d.id) === String(registoEmEdicao))?.parent_id : `grp_${Date.now()}`;
 
             let novosRegistros = [];
 
             if (registoEmEdicao) {
                 // Modo Edição (Apenas altera o registro específico, preservando parcelas/regras geradas)
-                const index = despesas.findIndex(d => d.id === registoEmEdicao);
+                const index = despesas.findIndex(d => String(d.id) === String(registoEmEdicao));
                 if(index !== -1) {
-                    despesas[index].descricao = descricao;
-                    despesas[index].data = data;
-                    if(despesas[index].tipo === 'cartao'){
-                       despesas[index].valor_parcela = valor; // Na edição, o user altera o valor da parcela
-                       despesas[index].valor_total = valor * despesas[index].quantidade_parcelas; // Reajusta total
+                    const base = despesas[index];
+                    const escopo = document.querySelector('input[name="escopo_edicao"]:checked')?.value || 'esta';
+                    const alvos = escopo === 'futuras' && base.parent_id
+                        ? despesas.filter(d => d.parent_id === base.parent_id && new Date(d.data) >= new Date(base.data))
+                        : [base];
+                    alvos.forEach((item, idx) => {
+                        const dataOriginal = new Date(base.data + 'T12:00:00');
+                        const dataNova = new Date(data + 'T12:00:00');
+                        const alvoData = new Date(item.data + 'T12:00:00');
+                        const diferencaMeses = (alvoData.getFullYear() - dataOriginal.getFullYear()) * 12 + (alvoData.getMonth() - dataOriginal.getMonth());
+                        item.descricao = descricao;
+                        item.data = String(item.id) === String(base.id) ? data : adicionarMesDate(dataNova.toISOString().split('T')[0], diferencaMeses);
+                    if(item.tipo === 'cartao'){
+                       item.valor_parcela = valor;
+                       item.valor_total = valor * item.quantidade_parcelas;
+                       item.cartao_nome = document.getElementById('input-cartao-nome').value || item.cartao_nome;
                     } else {
-                       despesas[index].valor = valor;
+                       item.valor = valor;
                     }
-                    if(tipoRegistoAtual === 'despesa') despesas[index].categoria = categoria;
+                    if(tipoRegistoAtual === 'despesa') item.categoria = categoria;
+                    });
                 }
                 showToast('Registro atualizado!');
             } else {
                 // Modo Criação
                 if (tipoRegistoAtual === 'receita') {
-                    novosRegistros.push({
-                        id: Date.now(), tipo: 'receita', descricao, valor, data, status_pagamento: true, categoria: 'Receita'
-                    });
+                    const repetirReceita = document.getElementById('input-repetir-receita').checked;
+                    if(repetirReceita) {
+                        const dataObj = new Date(data + 'T12:00:00');
+                        const mesInicial = dataObj.getMonth();
+                        for(let i = mesInicial; i <= 11; i++) {
+                            novosRegistros.push({
+                                id: Date.now() + i, parent_id: parentId, tipo: 'receita',
+                                descricao, valor, data: adicionarMesDate(data, i - mesInicial),
+                                status_pagamento: true, categoria: 'Receita'
+                            });
+                        }
+                    } else {
+                        novosRegistros.push({
+                            id: Date.now(), tipo: 'receita', descricao, valor, data, status_pagamento: true, categoria: 'Receita'
+                        });
+                    }
                 } else {
                     const metodo = document.querySelector('input[name="metodo_pagamento"]:checked').value;
                     
@@ -739,10 +1107,215 @@
         }
 
         // --- ÁREA DE GESTÃO E FILTROS ---
+        function trocarAbaGestao(aba) {
+            abaGestaoAtual = aba;
+            ['registros', 'perfil', 'cartoes', 'relatorios', 'metas', 'backup'].forEach(nome => {
+                document.getElementById(`painel-${nome}`).classList.toggle('hidden', nome !== aba);
+                document.getElementById(`tab-${nome}`).className = nome === aba
+                    ? 'py-2 rounded-lg text-[10px] font-bold bg-surface text-white'
+                    : 'py-2 rounded-lg text-[10px] font-bold text-zinc-500';
+            });
+            if(aba === 'registros') renderizarListaGestao();
+            if(aba === 'perfil') renderizarPerfil();
+            if(aba === 'cartoes') renderizarCartoes();
+            if(aba === 'relatorios') renderizarRelatorios();
+            if(aba === 'metas') renderizarMetas();
+            lucide.createIcons();
+        }
+
+        function renderizarPerfil() {
+            if(!usuarioAtual) return;
+            document.getElementById('perfil-nome').value = usuarioAtual.nome || '';
+            document.getElementById('perfil-email').value = usuarioAtual.email || '';
+            document.getElementById('perfil-telefone').value = usuarioAtual.telefone || '';
+            document.getElementById('perfil-nascimento').value = usuarioAtual.nascimento || '';
+            document.getElementById('perfil-cargo').value = usuarioAtual.cargo || '';
+            document.getElementById('perfil-salario').value = usuarioAtual.salario || '';
+            document.getElementById('perfil-dia-pagamento').value = usuarioAtual.diaPagamento || '';
+            document.getElementById('perfil-dia-adiantamento').value = usuarioAtual.diaAdiantamento || '';
+            document.getElementById('perfil-meta').value = usuarioAtual.metaEconomia || '';
+            document.getElementById('perfil-avatar').value = usuarioAtual.avatar || '';
+            document.getElementById('perfil-cidade').value = usuarioAtual.cidade || '';
+            document.getElementById('perfil-estado').value = usuarioAtual.estado || '';
+            document.getElementById('perfil-moeda').value = usuarioAtual.moeda || 'BRL';
+        }
+
+        function salvarPerfil(event) {
+            event.preventDefault();
+            const perfilAtualizado = lerPerfilCadastro('perfil');
+            perfilAtualizado.id = usuarioAtual.id;
+            usuarioAtual = perfilAtualizado;
+            const idx = usuarios.findIndex(u => u.id === usuarioAtual.id);
+            if(idx >= 0) usuarios[idx] = usuarioAtual;
+            salvarUsuarios();
+            localStorage.setItem('finances_current_user_v1', usuarioAtual.id);
+            metas.economiaMensal = usuarioAtual.metaEconomia || metas.economiaMensal || 0;
+            saveConfigData();
+            aplicarReceitasAutomaticas();
+            atualizarCabecalhoUsuario();
+            renderizarDashboard();
+            showToast('Perfil salvo!');
+        }
+
+        function atualizarOpcoesCartoes() {
+            const datalist = document.getElementById('cartoes-options');
+            if(!datalist) return;
+            datalist.innerHTML = cartoes.map(c => `<option value="${c.nome}"></option>`).join('');
+        }
+
+        function salvarCartao(event) {
+            event.preventDefault();
+            const id = document.getElementById('cartao-id').value;
+            const cartao = {
+                id: id ? Number(id) : Date.now(),
+                nome: document.getElementById('cartao-nome').value.trim(),
+                limite: parseFloat(document.getElementById('cartao-limite').value) || 0,
+                fechamento: parseInt(document.getElementById('cartao-fechamento').value) || 1,
+                vencimento: parseInt(document.getElementById('cartao-vencimento').value) || 1
+            };
+            if(!cartao.nome) { showToast('Informe o nome do cartao.'); return; }
+            const idx = cartoes.findIndex(c => c.id === cartao.id);
+            if(idx >= 0) cartoes[idx] = cartao; else cartoes.push(cartao);
+            saveConfigData();
+            event.target.reset();
+            document.getElementById('cartao-id').value = '';
+            atualizarOpcoesCartoes();
+            renderizarCartoes();
+            showToast('Cartao salvo!');
+        }
+
+        function editarCartao(id) {
+            const cartao = cartoes.find(c => c.id === id);
+            if(!cartao) return;
+            document.getElementById('cartao-id').value = cartao.id;
+            document.getElementById('cartao-nome').value = cartao.nome;
+            document.getElementById('cartao-limite').value = cartao.limite;
+            document.getElementById('cartao-fechamento').value = cartao.fechamento;
+            document.getElementById('cartao-vencimento').value = cartao.vencimento;
+        }
+
+        function excluirCartao(id) {
+            cartoes = cartoes.filter(c => c.id !== id);
+            saveConfigData();
+            atualizarOpcoesCartoes();
+            renderizarCartoes();
+        }
+
+        function renderizarCartoes() {
+            const lista = document.getElementById('lista-cartoes');
+            if(cartoes.length === 0) {
+                lista.innerHTML = '<p class="text-zinc-500 text-sm text-center py-6">Nenhum cartao cadastrado.</p>';
+                return;
+            }
+            const registrosMes = getDespesasDoMes();
+            lista.innerHTML = cartoes.map(c => {
+                const fatura = registrosMes.filter(d => d.tipo === 'cartao' && (d.cartao_nome || '').toLowerCase() === c.nome.toLowerCase()).reduce((soma, d) => soma + valorDoRegistro(d), 0);
+                const disponivel = Math.max(c.limite - fatura, 0);
+                const perc = c.limite > 0 ? Math.min((fatura / c.limite) * 100, 100) : 0;
+                return `<div class="bg-surfaceHover border border-borderMain rounded-xl p-4">
+                    <div class="flex justify-between gap-3"><div><h3 class="font-bold text-white">${c.nome}</h3><p class="text-[10px] text-zinc-500 mt-1">Fecha dia ${c.fechamento} • Vence dia ${c.vencimento}</p></div>
+                    <div class="flex gap-1"><button onclick="editarCartao(${c.id})" class="p-2 rounded-lg text-brand-yellow hover:bg-brand-yellow/10"><i data-lucide="edit-2" class="w-4 h-4"></i></button><button onclick="excluirCartao(${c.id})" class="p-2 rounded-lg text-rose-500 hover:bg-rose-500/10"><i data-lucide="trash-2" class="w-4 h-4"></i></button></div></div>
+                    <div class="grid grid-cols-2 gap-3 mt-4 text-xs"><div><p class="text-zinc-500">Limite</p><p class="font-bold text-white">${formatarMoeda(c.limite)}</p></div><div><p class="text-zinc-500">Fatura atual</p><p class="font-bold text-white">${formatarMoeda(fatura)}</p></div><div class="col-span-2"><p class="text-zinc-500">Disponivel</p><p class="font-bold text-emerald-500">${formatarMoeda(disponivel)}</p></div></div>
+                    <div class="h-2 bg-background rounded-full overflow-hidden mt-3"><div class="h-full bg-brand-yellow" style="width:${perc}%"></div></div>
+                </div>`;
+            }).join('');
+            lucide.createIcons();
+        }
+
+        function renderizarRelatorios() {
+            const painel = document.getElementById('painel-relatorios');
+            const atual = somarRegistros(getDespesasDoMes());
+            let mesAnterior = mesAtual - 1, anoAnterior = anoAtual;
+            if(mesAnterior < 0) { mesAnterior = 11; anoAnterior--; }
+            const anterior = somarRegistros(getRegistrosPorMes(mesAnterior, anoAnterior));
+            const maiorCategoria = Object.entries(atual.categorias).sort((a,b) => b[1] - a[1])[0];
+            const saldoAtualMes = atual.receitas - atual.despesas;
+            const saldoAnteriorMes = anterior.receitas - anterior.despesas;
+            const diffDespesa = atual.despesas - anterior.despesas;
+            const maiorBase = Math.max(Math.abs(saldoAnteriorMes), Math.abs(saldoAtualMes), 1);
+            painel.innerHTML = `<div class="grid grid-cols-2 gap-3">
+                <div class="bg-background/60 border border-borderMain rounded-xl p-3"><p class="text-[10px] text-zinc-500 uppercase font-bold">Gastos do mes</p><p class="font-bold text-white mt-1">${formatarMoeda(atual.despesas)}</p></div>
+                <div class="bg-background/60 border border-borderMain rounded-xl p-3"><p class="text-[10px] text-zinc-500 uppercase font-bold">Maior categoria</p><p class="font-bold text-white mt-1">${maiorCategoria ? maiorCategoria[0] : '-'}</p></div>
+                <div class="bg-background/60 border border-borderMain rounded-xl p-3"><p class="text-[10px] text-zinc-500 uppercase font-bold">Saldo do mes</p><p class="font-bold ${saldoAtualMes >= 0 ? 'text-emerald-500' : 'text-rose-500'} mt-1">${formatarMoeda(saldoAtualMes)}</p></div>
+                <div class="bg-background/60 border border-borderMain rounded-xl p-3"><p class="text-[10px] text-zinc-500 uppercase font-bold">Vs mes anterior</p><p class="font-bold ${diffDespesa <= 0 ? 'text-emerald-500' : 'text-rose-500'} mt-1">${diffDespesa >= 0 ? '+' : ''}${formatarMoeda(diffDespesa)}</p></div>
+            </div><div class="bg-background/60 border border-borderMain rounded-xl p-4"><p class="text-xs font-bold text-zinc-300 mb-3">Evolucao do saldo</p><div class="flex items-end gap-4 h-24"><div class="flex-1 bg-surfaceHover rounded-t-lg relative" style="height:${Math.max(Math.abs(saldoAnteriorMes), 1) / maiorBase * 100}%"><span class="absolute -top-5 left-0 right-0 text-center text-[10px] text-zinc-500">${nomesMeses[mesAnterior].slice(0,3)}</span></div><div class="flex-1 bg-brand-yellow rounded-t-lg relative" style="height:${Math.max(Math.abs(saldoAtualMes), 1) / maiorBase * 100}%"><span class="absolute -top-5 left-0 right-0 text-center text-[10px] text-zinc-500">${nomesMeses[mesAtual].slice(0,3)}</span></div></div></div>`;
+        }
+
+        function salvarMetas() {
+            metas.economiaMensal = parseFloat(document.getElementById('meta-economia').value) || 0;
+            document.querySelectorAll('[data-meta-categoria]').forEach(input => {
+                metas.limitesCategoria[input.dataset.metaCategoria] = parseFloat(input.value) || 0;
+            });
+            saveConfigData();
+            renderizarAlertasMetas();
+        }
+
+        function renderizarMetas() {
+            document.getElementById('meta-economia').value = metas.economiaMensal || '';
+            const categorias = Object.keys(categoriasIcons).filter(c => c !== 'Receita');
+            document.getElementById('lista-metas-categorias').innerHTML = categorias.map(cat => `<div class="grid grid-cols-[1fr_110px] gap-2 items-center"><span class="text-xs text-zinc-400">${cat}</span><input data-meta-categoria="${cat}" oninput="salvarMetas()" type="number" min="0" step="0.01" value="${metas.limitesCategoria[cat] || ''}" placeholder="0,00" class="bg-surface border border-borderMain rounded-lg py-2 px-2 text-white text-xs outline-none focus:border-brand-yellow"></div>`).join('');
+            renderizarAlertasMetas();
+        }
+
+        function renderizarAlertasMetas() {
+            const alertas = document.getElementById('alertas-metas');
+            const resumo = somarRegistros(getDespesasDoMes());
+            const saldoProjetado = resumo.receitas - resumo.despesas;
+            const itens = [];
+            if(metas.economiaMensal > 0 && saldoProjetado < metas.economiaMensal) itens.push(`Meta de economia em risco: faltam ${formatarMoeda(metas.economiaMensal - saldoProjetado)}.`);
+            Object.entries(metas.limitesCategoria || {}).forEach(([cat, limite]) => {
+                const gasto = resumo.categorias[cat] || 0;
+                if(limite > 0 && gasto >= limite * 0.8) itens.push(`${cat}: ${formatarMoeda(gasto)} de ${formatarMoeda(limite)} (${((gasto / limite) * 100).toFixed(0)}%).`);
+            });
+            alertas.innerHTML = itens.length ? itens.map(msg => `<div class="bg-amber-500/10 border border-amber-500/20 text-amber-200 rounded-xl p-3 text-xs font-medium">${msg}</div>`).join('') : '<div class="bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 rounded-xl p-3 text-xs font-medium">Tudo dentro das metas neste mes.</div>';
+        }
+
+        function exportarBackup() {
+            const payload = { versao: 2, exportadoEm: new Date().toISOString(), usuario: usuarioAtual, despesas, cartoes, metas };
+            const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `backup-onix-finan-${new Date().toISOString().slice(0,10)}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function importarBackup(event) {
+            const file = event.target.files[0];
+            if(!file) return;
+            const reader = new FileReader();
+            reader.onload = () => {
+                try {
+                    const dados = JSON.parse(reader.result);
+                    despesas = Array.isArray(dados.despesas) ? dados.despesas : despesas;
+                    cartoes = Array.isArray(dados.cartoes) ? dados.cartoes : cartoes;
+                    metas = dados.metas || metas;
+                    if(dados.usuario) {
+                        dados.usuario.id = usuarioAtual.id;
+                        usuarioAtual = { ...usuarioAtual, ...dados.usuario };
+                        const idx = usuarios.findIndex(u => u.id === usuarioAtual.id);
+                        if(idx >= 0) usuarios[idx] = usuarioAtual;
+                        salvarUsuarios();
+                        atualizarCabecalhoUsuario();
+                    }
+                    saveData();
+                    saveConfigData();
+                    atualizarOpcoesCartoes();
+                    renderizarDashboard();
+                    trocarAbaGestao('backup');
+                    showToast('Backup importado!');
+                } catch (e) {
+                    showToast('Arquivo de backup invalido.');
+                }
+            };
+            reader.readAsText(file);
+        }
+
         function abrirGestao() {
             document.getElementById('busca-gestao').value = '';
             document.getElementById('filtro-status-gestao').value = 'todos';
-            renderizarListaGestao();
+            trocarAbaGestao(abaGestaoAtual || 'registros');
             document.getElementById('modal-backdrop').classList.remove('hidden');
             setTimeout(() => {
                 document.getElementById('modal-backdrop').classList.remove('opacity-0');
@@ -783,7 +1356,7 @@
 
             dados.sort((a, b) => new Date(b.data) - new Date(a.data)).forEach(d => {
                 const isCartao = d.tipo === 'cartao';
-                const valorExibir = isCartao ? d.valor_parcela : d.valor;
+                const valorExibir = valorDoRegistro(d);
                 let infoExtra = d.tipo === 'receita' ? 'Receita' : (isCartao ? `Cartão (${d.parcela_atual}/${d.quantidade_parcelas})` : 'Fixo');
                 let corValor = d.tipo === 'receita' ? 'text-emerald-500' : 'text-zinc-100';
                 
@@ -794,10 +1367,10 @@
                             <p class="text-[10px] text-zinc-400 mt-1">${formatarData(d.data)} • ${infoExtra} • <span class="${corValor} font-bold">${formatarMoeda(valorExibir)}</span></p>
                         </div>
                         <div class="flex gap-1 shrink-0">
-                            <button onclick="prepararEdicao(${d.id})" class="p-2 rounded-lg text-brand-yellow hover:bg-brand-yellow/10 transition-colors">
+                            <button onclick="prepararEdicao('${d.id}')" class="p-2 rounded-lg text-brand-yellow hover:bg-brand-yellow/10 transition-colors">
                                 <i data-lucide="edit-2" class="w-4 h-4"></i>
                             </button>
-                            <button id="btn-del-${d.id}" onclick="confirmarExclusao(${d.id})" class="p-2 rounded-lg text-rose-500 hover:bg-rose-500/10 transition-colors">
+                            <button id="btn-del-${d.id}" onclick="confirmarExclusao('${d.id}')" class="p-2 rounded-lg text-rose-500 hover:bg-rose-500/10 transition-colors">
                                 <i data-lucide="trash-2" class="w-4 h-4"></i>
                             </button>
                         </div>
@@ -811,8 +1384,8 @@
         function confirmarExclusao(id) {
             const btn = document.getElementById(`btn-del-${id}`);
             if(idExclusaoPendente === id) {
-                itemExcluidoRecentemente = despesas.find(d => d.id === id); // Guardar para Undo
-                despesas = despesas.filter(d => d.id !== id);
+                itemExcluidoRecentemente = despesas.find(d => String(d.id) === String(id)); // Guardar para Undo
+                despesas = despesas.filter(d => String(d.id) !== String(id));
                 saveData();
                 idExclusaoPendente = null;
                 showToast('Registro excluído.', true); // true = mostra botão desfazer
@@ -831,7 +1404,7 @@
 
         function prepararEdicao(id) {
             fecharGestao();
-            const despesa = despesas.find(d => d.id === id);
+            const despesa = despesas.find(d => String(d.id) === String(id));
             if(!despesa) return;
             registoEmEdicao = id;
             
@@ -840,6 +1413,8 @@
                 document.getElementById('input-descricao').value = despesa.descricao;
                 document.getElementById('input-data').value = despesa.data;
                 document.getElementById('campo-repetir').classList.add('hidden'); // Ocultar na edição
+                document.getElementById('campo-repetir-receita').classList.add('hidden');
+                document.getElementById('campo-edicao-lote').classList.toggle('hidden', !despesa.parent_id);
                 
                 if(despesa.tipo === 'receita') {
                     document.getElementById('input-valor').value = despesa.valor;
@@ -866,7 +1441,7 @@
             }, 300);
         }
 
-        window.onload = initData;
+        window.onload = iniciarAuth;
     </script>
 </body>
 </html>
