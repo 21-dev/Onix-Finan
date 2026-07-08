@@ -37,7 +37,13 @@
         body { -webkit-tap-highlight-color: transparent; background-color: #000; }
         .card-enter { animation: slideUpFade 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; opacity: 0; transform: translateY(15px); }
         @keyframes slideUpFade { to { opacity: 1; transform: translateY(0); } }
-        .glass-panel { background: rgba(24, 24, 27, 0.6); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.05); }
+        .glass-panel { background: linear-gradient(145deg, rgba(39, 39, 42, 0.72), rgba(12, 12, 14, 0.58)); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid rgba(250, 204, 21, 0.14); box-shadow: 0 16px 40px -28px rgba(250, 204, 21, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.06); }
+        .glass-card { background: linear-gradient(145deg, rgba(39, 39, 42, 0.72), rgba(12, 12, 14, 0.62)); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); border: 1px solid rgba(250, 204, 21, 0.13); box-shadow: 0 18px 44px -30px rgba(250, 204, 21, 0.9), inset 0 1px 0 rgba(255, 255, 255, 0.06); }
+        .bottom-nav { background: linear-gradient(180deg, rgba(17, 24, 39, 0.92), rgba(3, 7, 18, 0.96)); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.08); box-shadow: 0 -14px 45px -24px rgba(250, 204, 21, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.08); }
+        .nav-item { color: #a1a1aa; min-width: 0; }
+        .nav-item span { max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .nav-item.active { color: #ffffff; }
+        .nav-item.active i { color: #FACC15; filter: drop-shadow(0 0 8px rgba(250, 204, 21, 0.55)); }
         .toast-enter { animation: toastIn 0.3s ease-out forwards; }
         .toast-exit { animation: toastOut 0.3s ease-in forwards; }
         @keyframes toastIn { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
@@ -110,7 +116,7 @@
                     <button onclick="sairUsuario()" class="p-2 rounded-full hover:bg-surfaceHover text-zinc-400 hover:text-white transition-colors">
                         <i data-lucide="log-out" class="w-4 h-4"></i>
                     </button>
-                    <button onclick="abrirGestao()" class="p-2 rounded-full hover:bg-surfaceHover text-zinc-400 hover:text-white transition-colors">
+                    <button onclick="abrirGestao('perfil')" class="p-2 rounded-full hover:bg-surfaceHover text-zinc-400 hover:text-white transition-colors">
                         <i data-lucide="settings-2" class="w-4 h-4"></i>
                     </button>
                 </div>
@@ -198,11 +204,29 @@
             </div>
         </section>
 
-        <!-- FAB -->
-        <div class="fixed bottom-0 left-0 right-0 p-6 pt-12 bg-gradient-to-t from-background via-background/90 to-transparent pointer-events-none z-40 flex justify-center">
-            <button onclick="toggleModal('abrir')" class="pointer-events-auto w-full max-w-[320px] bg-brand-yellow hover:bg-brand-yellowHover text-black font-bold py-4 rounded-2xl shadow-glow transition-all transform active:scale-95 flex items-center justify-center gap-2 text-base">
-                <i data-lucide="plus" class="w-5 h-5"></i> Adicionar Registo
-            </button>
+        <!-- Barra inferior -->
+        <div class="fixed bottom-0 left-0 right-0 z-40 px-4 pb-4 pt-10 bg-gradient-to-t from-background via-background/95 to-transparent pointer-events-none">
+            <nav class="bottom-nav pointer-events-auto max-w-md mx-auto h-[74px] rounded-[2rem] px-5 grid grid-cols-5 items-center gap-1">
+                <button onclick="irHome()" id="nav-home" class="nav-item active h-full flex flex-col items-center justify-center gap-1 text-[10px] font-medium transition-colors">
+                    <i data-lucide="home" class="w-5 h-5"></i>
+                    <span>Home</span>
+                </button>
+                <button onclick="abrirGestao('registros')" id="nav-registros" class="nav-item h-full flex flex-col items-center justify-center gap-1 text-[10px] font-medium transition-colors">
+                    <i data-lucide="receipt-text" class="w-5 h-5"></i>
+                    <span>Registros</span>
+                </button>
+                <button onclick="toggleModal('abrir')" aria-label="Adicionar registro" class="mx-auto -mt-7 w-14 h-14 rounded-full bg-brand-yellow hover:bg-brand-yellowHover text-black shadow-glow flex items-center justify-center transition-all active:scale-95 border-[5px] border-background">
+                    <i data-lucide="plus" class="w-7 h-7"></i>
+                </button>
+                <button onclick="abrirGestao('cartoes')" id="nav-cartoes" class="nav-item h-full flex flex-col items-center justify-center gap-1 text-[10px] font-medium transition-colors">
+                    <i data-lucide="credit-card" class="w-5 h-5"></i>
+                    <span>Cartões</span>
+                </button>
+                <button onclick="abrirGestao('perfil')" id="nav-menu" class="nav-item h-full flex flex-col items-center justify-center gap-1 text-[10px] font-medium transition-colors">
+                    <i data-lucide="grid-2x2" class="w-5 h-5"></i>
+                    <span>Menu</span>
+                </button>
+            </nav>
         </div>
 
     </main>
@@ -211,7 +235,7 @@
     <div id="toast-container" class="fixed top-6 left-0 right-0 z-[70] flex flex-col items-center pointer-events-none px-4 space-y-2"></div>
 
     <!-- MODAL CADASTRO -->
-    <div id="modal-backdrop" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden opacity-0 transition-opacity duration-300" onclick="toggleModal('fechar')"></div>
+    <div id="modal-backdrop" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden opacity-0 transition-opacity duration-300" onclick="fecharSobreposicao()"></div>
     
     <div id="modal-sheet" class="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-surface border-t border-borderMain rounded-t-[2.5rem] z-[60] transform translate-y-full transition-transform duration-400 ease-out flex flex-col max-h-[90vh]">
         <div class="w-full flex justify-center pt-4 pb-2" onclick="toggleModal('fechar')"><div class="w-12 h-1.5 bg-zinc-700 rounded-full"></div></div>
@@ -333,15 +357,15 @@
 
         <div class="px-6 pb-8 overflow-y-auto overflow-x-hidden relative h-full flex flex-col">
             <div class="flex justify-between items-center mb-4">
-                <h2 class="text-xl font-bold text-white tracking-tight flex items-center gap-2"><i data-lucide="filter" class="w-5 h-5 text-zinc-400"></i> Gerenciar Registros</h2>
+                <h2 class="text-xl font-bold text-white tracking-tight flex items-center gap-2"><i data-lucide="settings-2" class="w-5 h-5 text-zinc-400"></i> <span id="gestao-titulo">Menu</span></h2>
                 <button onclick="fecharGestao()" class="p-2 rounded-full bg-zinc-800 text-zinc-400"><i data-lucide="x" class="w-4 h-4"></i></button>
             </div>
 
-            <div class="grid grid-cols-6 gap-1 bg-background/70 border border-borderMain rounded-xl p-1 mb-4">
-                <button onclick="trocarAbaGestao('registros')" id="tab-registros" class="py-2 rounded-lg text-[10px] font-bold bg-surface text-white">Registros</button>
+            <div class="grid grid-cols-3 gap-1 bg-background/70 border border-borderMain rounded-xl p-1 mb-4">
+                <button onclick="trocarAbaGestao('registros')" id="tab-registros" class="hidden py-2 rounded-lg text-[10px] font-bold text-zinc-500">Registros</button>
                 <button onclick="trocarAbaGestao('perfil')" id="tab-perfil" class="py-2 rounded-lg text-[10px] font-bold text-zinc-500">Perfil</button>
-                <button onclick="trocarAbaGestao('cartoes')" id="tab-cartoes" class="py-2 rounded-lg text-[10px] font-bold text-zinc-500">Cartões</button>
-                <button onclick="trocarAbaGestao('relatorios')" id="tab-relatorios" class="py-2 rounded-lg text-[10px] font-bold text-zinc-500">Relatórios</button>
+                <button onclick="trocarAbaGestao('cartoes')" id="tab-cartoes" class="hidden py-2 rounded-lg text-[10px] font-bold text-zinc-500">Cartões</button>
+                <button onclick="trocarAbaGestao('relatorios')" id="tab-relatorios" class="hidden py-2 rounded-lg text-[10px] font-bold text-zinc-500">Relatórios</button>
                 <button onclick="trocarAbaGestao('metas')" id="tab-metas" class="py-2 rounded-lg text-[10px] font-bold text-zinc-500">Metas</button>
                 <button onclick="trocarAbaGestao('backup')" id="tab-backup" class="py-2 rounded-lg text-[10px] font-bold text-zinc-500">Backup</button>
             </div>
@@ -1042,7 +1066,7 @@
                 if (!item.status_pagamento && !isReceita) {
                     contagemPendentes++;
                     listaPendentes.innerHTML += `
-                        <div class="card-enter bg-surface border border-borderMain rounded-2xl p-4 flex flex-col gap-4 shadow-sm relative overflow-hidden group" style="animation-delay: ${animDelay}s" id="card-${item.id}">
+                        <div class="card-enter glass-card rounded-2xl p-4 flex flex-col gap-4 relative overflow-hidden group" style="animation-delay: ${animDelay}s" id="card-${item.id}">
                             <div class="flex justify-between items-start">
                                 <div class="flex gap-3 items-center min-w-0 pr-2">
                                     ${imagemCartao || `<div class="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center ${colorCatClass} shrink-0 border border-zinc-700/50"><i data-lucide="${iconeCat}" class="w-4 h-4"></i></div>`}
@@ -1068,7 +1092,7 @@
                     const finalIcon = isReceita ? 'arrow-down-left' : 'check-check';
 
                     listaPagas.innerHTML += `
-                        <div class="card-enter bg-transparent border border-borderMain/40 rounded-2xl p-3 flex items-center justify-between ${opacity}" style="animation-delay: ${animDelay}s">
+                        <div class="card-enter glass-card rounded-2xl p-3 flex items-center justify-between ${opacity}" style="animation-delay: ${animDelay}s">
                             <div class="flex gap-3 items-center min-w-0 pr-2">
                                 ${imagemCartao || `<div class="w-8 h-8 rounded-full ${iconBg} border flex items-center justify-center shrink-0"><i data-lucide="${finalIcon}" class="w-4 h-4"></i></div>`}
                                 <div class="min-w-0">
@@ -1208,7 +1232,14 @@
             } else {
                 backdrop.classList.add('opacity-0');
                 sheet.classList.add('translate-y-full');
-                setTimeout(() => { backdrop.classList.add('hidden'); registoEmEdicao = null; document.getElementById('form-cadastro').reset(); document.getElementById('campo-edicao-lote').classList.add('hidden'); setTipoRegisto('despesa'); }, 400);
+                setTimeout(() => {
+                    const gestaoAberta = !document.getElementById('modal-gestao-sheet').classList.contains('translate-y-full');
+                    if(!gestaoAberta) backdrop.classList.add('hidden');
+                    registoEmEdicao = null;
+                    document.getElementById('form-cadastro').reset();
+                    document.getElementById('campo-edicao-lote').classList.add('hidden');
+                    setTipoRegisto('despesa');
+                }, 400);
             }
         }
 
@@ -1378,19 +1409,44 @@
         }
 
         // --- ÁREA DE GESTÃO E FILTROS ---
+        function setBottomNavActive(alvo) {
+            ['home', 'registros', 'cartoes', 'menu'].forEach(nome => {
+                const item = document.getElementById(`nav-${nome}`);
+                if(item) item.classList.toggle('active', nome === alvo);
+            });
+        }
+
+        function irHome() {
+            fecharGestao();
+            setBottomNavActive('home');
+            document.getElementById('app-shell')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
         function trocarAbaGestao(aba) {
             abaGestaoAtual = aba;
+            const titulos = {
+                registros: 'Registros',
+                perfil: 'Perfil',
+                cartoes: 'Cartões',
+                relatorios: 'Relatórios',
+                metas: 'Metas',
+                backup: 'Backup'
+            };
+            const titulo = document.getElementById('gestao-titulo');
+            if(titulo) titulo.textContent = titulos[aba] || 'Menu';
             ['registros', 'perfil', 'cartoes', 'relatorios', 'metas', 'backup'].forEach(nome => {
                 document.getElementById(`painel-${nome}`).classList.toggle('hidden', nome !== aba);
-                document.getElementById(`tab-${nome}`).className = nome === aba
-                    ? 'py-2 rounded-lg text-[10px] font-bold bg-surface text-white'
-                    : 'py-2 rounded-lg text-[10px] font-bold text-zinc-500';
+                const tab = document.getElementById(`tab-${nome}`);
+                const tabOculta = ['registros', 'cartoes', 'relatorios'].includes(nome);
+                tab.className = `${tabOculta ? 'hidden ' : ''}py-2 rounded-lg text-[10px] font-bold ${nome === aba ? 'bg-surface text-white' : 'text-zinc-500'}`;
             });
             if(aba === 'registros') renderizarListaGestao();
             if(aba === 'perfil') renderizarPerfil();
             if(aba === 'cartoes') renderizarCartoes();
             if(aba === 'relatorios') renderizarRelatorios();
             if(aba === 'metas') renderizarMetas();
+            if(['registros', 'cartoes'].includes(aba)) setBottomNavActive(aba);
+            if(['perfil', 'metas', 'backup'].includes(aba)) setBottomNavActive('menu');
             lucide.createIcons();
         }
 
@@ -1585,10 +1641,12 @@
             reader.readAsText(file);
         }
 
-        function abrirGestao() {
-            document.getElementById('busca-gestao').value = '';
-            document.getElementById('filtro-status-gestao').value = 'todos';
-            trocarAbaGestao(abaGestaoAtual || 'registros');
+        function abrirGestao(aba = 'perfil') {
+            const buscaGestao = document.getElementById('busca-gestao');
+            const filtroGestao = document.getElementById('filtro-status-gestao');
+            if(buscaGestao) buscaGestao.value = '';
+            if(filtroGestao) filtroGestao.value = 'todos';
+            trocarAbaGestao(aba);
             document.getElementById('modal-backdrop').classList.remove('hidden');
             setTimeout(() => {
                 document.getElementById('modal-backdrop').classList.remove('opacity-0');
@@ -1599,7 +1657,18 @@
         function fecharGestao() {
             document.getElementById('modal-gestao-sheet').classList.add('translate-y-full');
             document.getElementById('modal-backdrop').classList.add('opacity-0');
-            setTimeout(() => { document.getElementById('modal-backdrop').classList.add('hidden'); }, 400);
+            setBottomNavActive('home');
+            setTimeout(() => {
+                const cadastroAberto = !document.getElementById('modal-sheet').classList.contains('translate-y-full');
+                if(!cadastroAberto) document.getElementById('modal-backdrop').classList.add('hidden');
+            }, 400);
+        }
+
+        function fecharSobreposicao() {
+            const modalCadastroAberto = !document.getElementById('modal-sheet').classList.contains('translate-y-full');
+            const modalGestaoAberto = !document.getElementById('modal-gestao-sheet').classList.contains('translate-y-full');
+            if(modalCadastroAberto) toggleModal('fechar');
+            if(modalGestaoAberto) fecharGestao();
         }
 
         function renderizarListaGestao() {
