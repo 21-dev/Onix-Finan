@@ -15,9 +15,11 @@ const NAV_ITEMS = [
     { id:'new', label:'Novo registro', icon:'plus-circle' },
     { id:'settings', label:'Configurações', icon:'settings-2' }
 ];
+const APP_ROUTES = new Set(NAV_ITEMS.map(item=>item.id));
 
 let supabaseClient = null;
 let syncTimer = null;
+let cloudSyncErrorShown = false;
 let currentView = 'home';
 let currentRecordTab = 'expense';
 let editingRecordId = null;
@@ -28,6 +30,12 @@ let recoveryMode = false;
 let appInitialized = false;
 let state = createDefaultState();
 const pendingButtonActions = new Map();
+
+function viewFromLocation() {
+    const match=location.hash.match(/^#\/([a-z-]+)$/),view=match?.[1];
+    return APP_ROUTES.has(view)?view:'home';
+}
+function routeFor(view) { return `#/${APP_ROUTES.has(view)?view:'home'}`; }
 
 function createDefaultState() {
     return {
@@ -147,8 +155,14 @@ async function loadState() {
 
 async function syncCloud() {
     if (!user || !getClient()) return;
-    try { await getClient().from(SUPABASE_TABLE).upsert({ user_id:user.id, payload:payload(), updated_at:new Date().toISOString() }, { onConflict:'user_id' }); }
-    catch (error) { console.warn('Falha ao sincronizar.', error); }
+    try {
+        const { error } = await getClient().from(SUPABASE_TABLE).upsert({ user_id:user.id, payload:payload(), updated_at:new Date().toISOString() }, { onConflict:'user_id' });
+        if(error)throw error;
+        cloudSyncErrorShown=false;
+    } catch (error) {
+        console.warn('Falha ao sincronizar com o Supabase.', error);
+        if(!cloudSyncErrorShown){cloudSyncErrorShown=true;showToast('Não foi possível sincronizar com a nuvem. Os dados continuam salvos neste dispositivo.');}
+    }
 }
 
 function profileFromAuth(authUser) {
@@ -166,7 +180,7 @@ async function initAuth() {
 function hideScreen(id) { $(id).classList.add('hidden'); $(id).classList.remove('flex'); }
 function showAuth() { hideScreen('recovery-screen'); $('auth-screen').classList.remove('hidden'); $('auth-screen').classList.add('flex'); $('app-shell').classList.add('hidden'); renderIcons(); }
 function showRecovery() { recoveryMode=true; hideScreen('auth-screen'); $('app-shell').classList.add('hidden'); $('recovery-screen').classList.remove('hidden'); $('recovery-screen').classList.add('flex'); $('recovery-password').focus(); renderIcons(); }
-async function enterApp(authUser) { user = authUser; hideScreen('auth-screen'); hideScreen('recovery-screen'); $('app-shell').classList.remove('hidden'); await loadState(); if(!appInitialized){setupApp();appInitialized=true;}else{renderNavigation();populateForms();navigate('home');} }
+async function enterApp(authUser) { user = authUser; hideScreen('auth-screen'); hideScreen('recovery-screen'); $('app-shell').classList.remove('hidden'); await loadState();currentView=viewFromLocation();if(!appInitialized){setupApp();appInitialized=true;}else{renderNavigation();populateForms();navigate(currentView,false,true);} }
 
 function setupRecoveryFlow() {
     const client=getClient();
@@ -198,7 +212,7 @@ function setupAuthEvents() {
 function setAuthTab(tab) { const login=tab==='login'; $('login-form').classList.toggle('hidden',!login); $('register-form').classList.toggle('hidden',login); $('auth-tab-login').className=`flex-1 rounded-lg px-3 py-2 text-sm font-semibold ${login?'bg-white shadow-sm':'text-gray-500'}`; $('auth-tab-register').className=`flex-1 rounded-lg px-3 py-2 text-sm font-semibold ${!login?'bg-white shadow-sm':'text-gray-500'}`; }
 
 function setupApp() {
-    renderNavigation(); populateForms(); bindStaticEvents(); navigate(currentView);
+    renderNavigation(); populateForms(); bindStaticEvents(); navigate(currentView,false,true);
     $('sidebar-user').textContent = state.profile.name;
 }
 
@@ -210,15 +224,22 @@ function renderNavigation() {
 }
 function navButton(item) { return `<button data-view="${item.id}" class="nav-link flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-gray-500 hover:bg-gray-50"><i data-lucide="${item.icon}" class="h-5 w-5"></i>${item.label}</button>`; }
 
-function navigate(view,preserveRecordEdit=false) {
+function navigate(view,preserveRecordEdit=false,fromHistory=false) {
+    if(!APP_ROUTES.has(view))view='home';
     if(!preserveRecordEdit && editingRecordId) resetRecordEditMode();
     if(view!=='new') resetCardForm();
     currentView=view; document.querySelectorAll('.view').forEach(el=>el.classList.toggle('active',el.id===`view-${view}`));
     document.querySelectorAll('.nav-link').forEach(el=>{ const active=el.dataset.view===view; el.classList.toggle('bg-ink',active); el.classList.toggle('text-white',active); el.classList.toggle('text-gray-500',!active); });
     $('mobile-menu').classList.add('hidden');
     if(view==='home') renderHome(); if(view==='cards') renderCards(); if(view==='goals') renderGoals(); if(view==='simulator') renderSimulator(); if(view==='settings'){fillSettings();setupSalaryPreview();}
+    const nextRoute=routeFor(view);
+    if(!fromHistory&&location.hash!==nextRoute)history.pushState({view},'',nextRoute);
+    else if(fromHistory&&!location.hash)history.replaceState({view},'',nextRoute);
+    document.title=`${NAV_ITEMS.find(item=>item.id===view)?.label||'Home'} | Onix Finan`;
     renderIcons(); window.scrollTo({top:0,behavior:'smooth'});
 }
+
+function handleSpaHistory() { const view=viewFromLocation();if(user&&!recoveryMode&&view!==currentView)navigate(view,false,true); }
 
 function bindStaticEvents() {
     $('mobile-menu-button').onclick=()=>$('mobile-menu').classList.toggle('hidden');
@@ -506,4 +527,6 @@ function handleFuturePurchase(action,id){const item=state.futurePurchases.find(e
 function renderAll() { if(currentView==='home')renderHome();if(currentView==='cards')renderCards();if(currentView==='goals')renderGoals();if(currentView==='simulator')renderSimulator();if(currentView==='settings')fillSettings();renderIcons(); }
 function showToast(message) { const toast=document.createElement('div');toast.className='rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-gray-700 shadow-lg';toast.textContent=message;$('toast-root').appendChild(toast);setTimeout(()=>toast.remove(),3200); }
 
+window.addEventListener('popstate',handleSpaHistory);
+window.addEventListener('hashchange',()=>{if(location.hash.startsWith('#/'))handleSpaHistory();});
 document.addEventListener('DOMContentLoaded',()=>{applyTheme();setupAuthEvents();setupRecoveryFlow();initAuth();});
