@@ -295,7 +295,7 @@ function ensureAutomaticIncome() {
     if(profile.salary && profile.advanceDay && profile.advanceDay!==profile.payday) {
         const advance=profile.salary*.4, payment=Math.max(0,profile.salary-advance-(profile.salary-netSalary));
         addIfMissing('advance',{tipo:'receita',descricao:'Adiantamento (40% do bruto)',valor:advance,data:dateFor(profile.advanceDay),categoria:'Salário'});
-        addIfMissing('salary',{tipo:'receita',descricao:'Pagamento após descontos',valor:payment,data:dateFor(profile.payday),categoria:'Salário'});        addIfMissing('salary',{tipo:'receita',descricao:'Pagamento após descontos',valor:payment,data:dateFor(profile.payday),categoria:'Salário'});
+        addIfMissing('salary',{tipo:'receita',descricao:'Pagamento após descontos',valor:payment,data:dateFor(profile.payday),categoria:'Salário'});
     } else if(profile.salary) addIfMissing('salary',{tipo:'receita',descricao:'Salário líquido',valor:netSalary,data:dateFor(profile.payday),categoria:'Salário'});
 }
 
@@ -472,6 +472,15 @@ function deleteRecord(id) {
         const choice=window.prompt('Excluir compra parcelada:\n1 - Somente esta parcela\n2 - Esta e as próximas\n3 - Todas as parcelas','1');if(!['1','2','3'].includes(choice))return;
         state.records=state.records.filter(item=>item.parent_id!==target.parent_id||(choice==='1'&&item.id!==target.id)||(choice==='2'&&Number(item.parcela_atual)<Number(target.parcela_atual)));
         saveState();showToast('Parcela(s) excluída(s).');renderAll();return;
+    }
+    const groupedRecords=target.parent_id&&state.records.filter(item=>item.parent_id===target.parent_id&&item.tipo===target.tipo).sort((a,b)=>String(a.data).localeCompare(String(b.data)));
+    if(groupedRecords?.length>1){
+        const label=target.tipo==='receita'?'receita':'conta',choice=window.prompt(`Excluir ${label} repetida:\n1 - Somente este lançamento\n2 - Este e os próximos\n3 - Toda a sequência`,'1');
+        if(!['1','2','3'].includes(choice))return;
+        if(choice==='1')state.records=state.records.filter(item=>String(item.id)!==String(target.id));
+        if(choice==='2')state.records=state.records.filter(item=>item.parent_id!==target.parent_id||item.tipo!==target.tipo||String(item.data)<String(target.data));
+        if(choice==='3')state.records=state.records.filter(item=>item.parent_id!==target.parent_id||item.tipo!==target.tipo);
+        saveState();showToast(choice==='1'?'Lançamento excluído.':choice==='2'?'Este e os próximos lançamentos foram excluídos.':'Toda a sequência foi excluída.');renderAll();return;
     }
     state.records=state.records.filter(item=>String(item.id)!==String(id));saveState();showToast('Registro excluído.');renderAll();
 }
