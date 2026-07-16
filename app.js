@@ -11,6 +11,7 @@ const NAV_ITEMS = [
     { id:'home', label:'Home', icon:'layout-dashboard' },
     { id:'cards', label:'Cartões', icon:'credit-card' },
     { id:'goals', label:'Metas', icon:'target' },
+    { id:'simulator', label:'Simulador', icon:'calculator' },
     { id:'new', label:'Novo registro', icon:'plus-circle' },
     { id:'settings', label:'Configurações', icon:'settings-2' }
 ];
@@ -35,6 +36,7 @@ function createDefaultState() {
         recurringTransactions: [],
         goalList: [],
         goalMovements: [],
+        futurePurchases: [],
         cards: [],
         goals: { name: 'Viagem de férias', target: 0, saved: 0, categoryLimits: {} },
         invoicePayments: {},
@@ -63,6 +65,20 @@ const money = value => new Intl.NumberFormat('pt-BR',{style:'currency',currency:
 const incomeIsAvailable = item => String(item.data||'')<=todayIso() && ((item.autoMonth||item.scheduledIncome)?true:Boolean(item.status_pagamento));
 const daysFromToday = value => Math.ceil((new Date(`${value}T12:00:00`)-new Date(`${todayIso()}T12:00:00`))/86400000);
 
+function salaryDeductions2026(grossValue) {
+    const gross=Math.max(0,Number(grossValue)||0), inssBands=[[1621,.075],[2902.84,.09],[4354.27,.12],[8475.55,.14]];
+    let inss=0,previous=0;
+    for(const [limit,rate] of inssBands){const taxable=Math.max(0,Math.min(gross,limit)-previous);inss+=taxable*rate;previous=limit;if(gross<=limit)break;}
+    inss=Math.round(inss*100)/100;
+    const legalDeduction=inss, simplifiedDeduction=607.20, irDeduction=Math.max(legalDeduction,simplifiedDeduction), irBase=Math.max(0,gross-irDeduction);
+    let rate=0,deduction=0;
+    if(irBase>4664.68){rate=.275;deduction=908.73;}else if(irBase>3751.05){rate=.225;deduction=675.49;}else if(irBase>2826.65){rate=.15;deduction=394.16;}else if(irBase>2428.80){rate=.075;deduction=182.16;}
+    const taxBeforeReduction=Math.max(0,irBase*rate-deduction);
+    let reduction=0;if(gross<=5000)reduction=taxBeforeReduction;else if(gross<=7350)reduction=Math.min(taxBeforeReduction,Math.max(0,978.62-.133145*gross));
+    const irrf=Math.round(Math.max(0,taxBeforeReduction-reduction)*100)/100,net=Math.round(Math.max(0,gross-inss-irrf)*100)/100;
+    return {gross,inss,irrf,net,irBase,usedSimplified:simplifiedDeduction>legalDeduction};
+}
+
 function getClient() {
     if (!supabaseClient && window.supabase) supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     return supabaseClient;
@@ -79,6 +95,7 @@ function normalizeState(payload = {}) {
         recurringTransactions: Array.isArray(payload.recurringTransactions) ? payload.recurringTransactions : [],
         goalList: migratedGoals,
         goalMovements: Array.isArray(payload.goalMovements) ? payload.goalMovements : [],
+        futurePurchases: Array.isArray(payload.futurePurchases) ? payload.futurePurchases : [],
         cards: (Array.isArray(payload.cards) ? payload.cards : Array.isArray(payload.cartoes) ? payload.cartoes : []).map(card => ({ id:card.id || uid('card'), name:card.name || card.nome, limit:Number(card.limit ?? card.limite) || 0, closingDay:Number(card.closingDay ?? card.fechamento) || 1, dueDay:Number(card.dueDay ?? card.vencimento) || 1, invoiceCycle:card.invoiceCycle || card.cicloFatura || null })),
         goals: { name:legacyGoals.name || 'Reserva financeira', target:Number(legacyGoals.target ?? legacyGoals.economiaMensal) || 0, saved:Number(legacyGoals.saved) || 0, categoryLimits:legacyGoals.categoryLimits || legacyGoals.limitesCategoria || {} },
         invoicePayments: payload.invoicePayments || {},
@@ -107,7 +124,7 @@ function loadLocalState() {
     });
 }
 
-function payload() { return { version:3, updatedAt:new Date().toISOString(), records:state.records, recurringTransactions:state.recurringTransactions, goalList:state.goalList, goalMovements:state.goalMovements, cards:state.cards, goals:state.goals, invoicePayments:state.invoicePayments, profile:state.profile }; }
+function payload() { return { version:3, updatedAt:new Date().toISOString(), records:state.records, recurringTransactions:state.recurringTransactions, goalList:state.goalList, goalMovements:state.goalMovements, futurePurchases:state.futurePurchases, cards:state.cards, goals:state.goals, invoicePayments:state.invoicePayments, profile:state.profile }; }
 function saveState() {
     localStorage.setItem(userStorageKey(), JSON.stringify(payload()));
     clearTimeout(syncTimer);
@@ -175,7 +192,7 @@ function setupAuthEvents() {
     $('auth-tab-login').onclick = () => setAuthTab('login'); $('auth-tab-register').onclick = () => setAuthTab('register');
     $('login-form').onsubmit = async event => { event.preventDefault(); const { data,error } = await getClient().auth.signInWithPassword({ email:$('login-email').value.trim(), password:$('login-password').value }); if(error) return showToast(error.message); await enterApp(data.user); };
     $('register-form').onsubmit = async event => { event.preventDefault(); const name=$('register-name').value.trim(), email=$('register-email').value.trim(), password=$('register-password').value; const {data,error}=await getClient().auth.signUp({email,password,options:{data:{name}}}); if(error) return showToast(error.message); if(!data.session) return showToast('Confirme o cadastro pelo e-mail.'); await enterApp(data.user); };
-    $('recover-password').onclick = async () => { const email=$('login-email').value.trim(); if(!email) return showToast('Informe o e-mail primeiro.'); const {error}=await getClient().auth.resetPasswordForEmail(email,{redirectTo:location.href.split('#')[0]}); showToast(error ? error.message : 'Link de recuperação enviado.'); };
+    $('recover-password').onclick = async () => { const email=$('login-email').value.trim(); if(!email) return showToast('Informe o e-mail primeiro.'); const redirectTo=`${location.origin}${location.pathname}`; const {error}=await getClient().auth.resetPasswordForEmail(email,{redirectTo}); showToast(error ? error.message : 'Link de recuperação enviado.'); };
 }
 
 function setAuthTab(tab) { const login=tab==='login'; $('login-form').classList.toggle('hidden',!login); $('register-form').classList.toggle('hidden',login); $('auth-tab-login').className=`flex-1 rounded-lg px-3 py-2 text-sm font-semibold ${login?'bg-white shadow-sm':'text-gray-500'}`; $('auth-tab-register').className=`flex-1 rounded-lg px-3 py-2 text-sm font-semibold ${!login?'bg-white shadow-sm':'text-gray-500'}`; }
@@ -199,7 +216,7 @@ function navigate(view,preserveRecordEdit=false) {
     currentView=view; document.querySelectorAll('.view').forEach(el=>el.classList.toggle('active',el.id===`view-${view}`));
     document.querySelectorAll('.nav-link').forEach(el=>{ const active=el.dataset.view===view; el.classList.toggle('bg-ink',active); el.classList.toggle('text-white',active); el.classList.toggle('text-gray-500',!active); });
     $('mobile-menu').classList.add('hidden');
-    if(view==='home') renderHome(); if(view==='cards') renderCards(); if(view==='goals') renderGoals(); if(view==='settings') fillSettings();
+    if(view==='home') renderHome(); if(view==='cards') renderCards(); if(view==='goals') renderGoals(); if(view==='simulator') renderSimulator(); if(view==='settings'){fillSettings();setupSalaryPreview();}
     renderIcons(); window.scrollTo({top:0,behavior:'smooth'});
 }
 
@@ -243,18 +260,22 @@ function updateCardOptions() { $('expense-card').innerHTML=state.cards.length?st
 
 function ensureAutomaticIncome() {
     const key=monthKey(), profile=state.profile;
-    if(!profile.salary) return;
+    const netSalary=salaryDeductions2026(profile.salary).net;
     const dateFor=day=>`${key}-${String(Math.min(Number(day)||1,new Date(currentDate.getFullYear(),currentDate.getMonth()+1,0).getDate())).padStart(2,'0')}`;
+    const expectedKinds=profile.salary?(profile.advanceDay&&profile.advanceDay!==profile.payday?['advance','salary']:['salary']):[];
+    state.records=state.records.filter(item=>item.autoMonth!==key||expectedKinds.includes(item.autoType));
     const addIfMissing=(kind,record)=>{
         const id=`auto_${key}_${kind}`;
-        if(state.records.some(item=>item.id===id || (item.autoMonth===key && item.autoType===kind))) return;
+        const existing=state.records.find(item=>item.id===id || (item.autoMonth===key && item.autoType===kind));
         const data=record.data;
-        state.records.push({id,autoMonth:key,autoType:kind,...record,status_pagamento:data<=todayIso()});
+        if(existing)Object.assign(existing,{id,autoMonth:key,autoType:kind,...record,status_pagamento:data<=todayIso()});
+        else state.records.push({id,autoMonth:key,autoType:kind,...record,status_pagamento:data<=todayIso()});
     };
-    if(profile.advanceDay && profile.advanceDay!==profile.payday) {
-        addIfMissing('advance',{tipo:'receita',descricao:'Adiantamento',valor:profile.salary*.4,data:dateFor(profile.advanceDay),categoria:'Salário'});
-        addIfMissing('salary',{tipo:'receita',descricao:'Pagamento',valor:profile.salary*.6,data:dateFor(profile.payday),categoria:'Salário'});
-    } else addIfMissing('salary',{tipo:'receita',descricao:'Salário',valor:profile.salary,data:dateFor(profile.payday),categoria:'Salário'});
+    if(profile.salary && profile.advanceDay && profile.advanceDay!==profile.payday) {
+        const advance=profile.salary*.4, payment=Math.max(0,profile.salary-advance-(profile.salary-netSalary));
+        addIfMissing('advance',{tipo:'receita',descricao:'Adiantamento (40% do bruto)',valor:advance,data:dateFor(profile.advanceDay),categoria:'Salário'});
+        addIfMissing('salary',{tipo:'receita',descricao:'Pagamento após descontos',valor:payment,data:dateFor(profile.payday),categoria:'Salário'});        addIfMissing('salary',{tipo:'receita',descricao:'Pagamento após descontos',valor:payment,data:dateFor(profile.payday),categoria:'Salário'});
+    } else if(profile.salary) addIfMissing('salary',{tipo:'receita',descricao:'Salário líquido',valor:netSalary,data:dateFor(profile.payday),categoria:'Salário'});
 }
 
 function ensureRecurringCharges(targetMonth=monthKey()) {
@@ -393,6 +414,7 @@ function resetRecordEditMode() { editingRecordId=null;editingRecordSourceView='h
 function finishRecordEdit(form,message) { const destination=editingRecordSourceView==='cards'?'cards':'home';saveState();editingRecordId=null;editingRecordSourceView='home';form.reset();$('expense-repeat').disabled=false;$('expense-method').disabled=false;$('expense-card').disabled=false;$('expense-installments').disabled=false;$('income-repeat').disabled=false;$('expense-form').querySelector('button').textContent='Salvar despesa';$('income-form').querySelector('button').textContent='Salvar receita';$('expense-date').value=$('income-date').value=todayIso();showToast(message);navigate(destination); }
 
 function fillSettings() { const p=state.profile,g=state.goals; $('settings-name').value=p.name;$('settings-email').value=p.email;$('settings-phone').value=p.phone;$('settings-birth').value=p.birth;$('settings-currency').value=p.currency;$('settings-salary').value=p.salary||'';$('settings-payday').value=p.payday||5;$('settings-advance-day').value=p.advanceDay||'';$('settings-invoice-cycle').value=p.invoiceCycle||'pagamento';$('settings-goal-name').value=g.name;$('settings-goal-value').value=g.target||'';$('settings-goal-saved').value=g.saved||'';['settings-goal-name','settings-goal-value','settings-goal-saved'].forEach(id=>$(id).closest('label').classList.add('hidden')); }
+function setupSalaryPreview() { const input=$('settings-salary'),label=input.closest('label');if(label.firstChild)label.firstChild.textContent='Salário bruto';let preview=$('salary-deductions-preview');if(!preview){preview=document.createElement('div');preview.id='salary-deductions-preview';preview.className='rounded-xl bg-sage-50 p-3 text-xs text-gray-500';label.insertAdjacentElement('afterend',preview);}const update=()=>{const result=salaryDeductions2026(input.value);preview.innerHTML=result.gross?`<div class="flex justify-between"><span>INSS estimado</span><strong>-${money(result.inss)}</strong></div><div class="mt-1 flex justify-between"><span>IRRF estimado</span><strong>-${money(result.irrf)}</strong></div><div class="mt-2 flex justify-between border-t border-gray-200 pt-2 text-sage-700"><span>Salário líquido estimado</span><strong>${money(result.net)}</strong></div><p class="mt-2 text-[10px] text-gray-400">Cálculo CLT 2026, sem dependentes ou outras deduções. ${result.usedSimplified?'Aplicado desconto simplificado no IRRF.':'Aplicada dedução legal do INSS no IRRF.'}</p>`:'Informe o salário bruto para estimar INSS, IRRF e salário líquido.';};input.oninput=update;update();}
 async function saveSettings(event) { event.preventDefault(); const previousEmail=state.profile.email; state.profile={...state.profile,name:$('settings-name').value.trim(),email:$('settings-email').value.trim(),phone:$('settings-phone').value.trim(),birth:$('settings-birth').value,salary:Number($('settings-salary').value)||0,payday:Number($('settings-payday').value)||5,advanceDay:Number($('settings-advance-day').value)||null,currency:$('settings-currency').value,invoiceCycle:$('settings-invoice-cycle').value}; const authUpdate={data:{name:state.profile.name,phone:state.profile.phone,birth:state.profile.birth,salary:state.profile.salary,payday:state.profile.payday,advanceDay:state.profile.advanceDay,currency:state.profile.currency}}; if(state.profile.email!==previousEmail)authUpdate.email=state.profile.email;if($('settings-password').value)authUpdate.password=$('settings-password').value;const{error}=await getClient().auth.updateUser(authUpdate);if(error)return showToast(error.message);$('settings-password').value='';ensureAutomaticIncome();ensureGoalContributions();saveState();$('sidebar-user').textContent=state.profile.name;showToast('Configurações atualizadas.');renderHome(); }
 
 function changeMonth(direction) { currentDate=new Date(currentDate.getFullYear(),currentDate.getMonth()+direction,1);ensureAutomaticIncome();ensureRecurringCharges();ensureGoalContributions();saveState();if(currentView==='cards')renderCards();else renderHome(); }
@@ -433,7 +455,55 @@ function deleteRecord(id) {
     state.records=state.records.filter(item=>String(item.id)!==String(id));saveState();showToast('Registro excluído.');renderAll();
 }
 function deleteCard(id) { const card=state.cards.find(item=>String(item.id)===String(id)); const hasPurchases=state.records.some(item=>item.tipo==='cartao'&&(String(item.cardId||'')===String(id)||(!item.cardId&&String(item.cartao_nome||'').toLowerCase()===String(card?.name||'').toLowerCase())));if(hasPurchases)return showToast('Exclua primeiro as compras vinculadas a este cartão.');state.cards=state.cards.filter(item=>String(item.id)!==String(id));saveState();updateCardOptions();showToast('Cartão excluído.');renderCards(); }
-function renderAll() { if(currentView==='home')renderHome();if(currentView==='cards')renderCards();if(currentView==='goals')renderGoals();if(currentView==='settings')fillSettings();renderIcons(); }
+function simulatorDraft() {
+    const value=Number($('sim-value')?.value)||0, date=$('sim-date')?.value||todayIso(), method=$('sim-method')?.value||'cartao', card=state.cards.find(item=>String(item.id)===String($('sim-card')?.value)), installments=method==='cartao'?Math.max(1,Number($('sim-installments')?.value)||1):1, portion=value/installments;
+    const charges=[];
+    for(let index=0;index<installments;index++) {
+        const purchaseDate=addMonths(date,index), invoiceKey=method==='cartao'&&card?invoiceMonthForPurchase(card,{data:purchaseDate}):purchaseDate.slice(0,7), chargeDate=method==='cartao'&&card?invoiceDueDate(card,invoiceKey):purchaseDate;
+        charges.push({date:chargeDate,month:chargeDate.slice(0,7),amount:portion});
+    }
+    return {description:$('sim-description')?.value.trim()||'Compra futura',value,date,method,cardId:card?.id||'',cardName:card?.name||'',installments,portion,charges};
+}
+
+function projectionFor(draft) {
+    const start=new Date(), startKey=`${start.getFullYear()}-${String(start.getMonth()+1).padStart(2,'0')}`;
+    return Array.from({length:6},(_,index)=>{
+        const key=addMonths(`${startKey}-01`,index).slice(0,7), monthRecords=state.records.filter(item=>{
+            if(item.tipo==='cartao'){const card=state.cards.find(card=>cardMatchesPurchase(card,item));return card?invoiceDueDate(card,invoiceMonthForPurchase(card,item)).slice(0,7)===key:String(item.data).slice(0,7)===key;}
+            return String(item.data||'').slice(0,7)===key;
+        });
+        const recordedIncome=monthRecords.filter(item=>item.tipo==='receita').reduce((sum,item)=>sum+valueOf(item),0), hasAutomaticSalary=monthRecords.some(item=>item.autoType==='salary'), income=recordedIncome+(!hasAutomaticSalary?salaryDeductions2026(state.profile.salary).net:0);
+        const expenses=monthRecords.filter(item=>item.tipo!=='receita').reduce((sum,item)=>sum+valueOf(item),0), simulated=draft.charges.filter(item=>item.month===key).reduce((sum,item)=>sum+item.amount,0);
+        return {key,income,expenses,simulated,balance:income-expenses-simulated};
+    });
+}
+
+function simulatorImpact(draft) {
+    const grouped={};draft.charges.forEach(item=>grouped[item.month]=(grouped[item.month]||0)+item.amount);
+    const maxMonthly=Math.max(0,...Object.values(grouped)), income=salaryDeductions2026(state.profile.salary).net, percent=income?maxMonthly/income*100:0;
+    if(!income)return {percent:null,label:'Renda não informada',tone:'bg-gray-100 text-gray-600'};
+    if(percent<=10)return {percent,label:'Baixo',tone:'bg-emerald-50 text-emerald-700'};
+    if(percent<=20)return {percent,label:'Moderado',tone:'bg-amber-50 text-amber-700'};
+    if(percent<=30)return {percent,label:'Alto',tone:'bg-orange-100 text-orange-700'};
+    return {percent,label:'Crítico',tone:'bg-red-50 text-red-600'};
+}
+
+function renderSimulator() {
+    const draft={description:'',value:0,date:todayIso(),method:'cartao',cardId:state.cards[0]?.id||'',installments:1,charges:[]};
+    $('view-simulator').innerHTML=`<div class="mb-6"><p class="text-xs font-bold uppercase tracking-widest text-sage-700">Planejamento</p><h1 class="mt-1 text-2xl font-bold">Simulador de compras futuras</h1><p class="mt-1 text-sm text-gray-500">Veja o impacto no orçamento antes de decidir pela compra.</p></div><div class="grid gap-6 xl:grid-cols-[380px_minmax(0,1fr)]"><form id="simulator-form" class="h-fit space-y-4 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm"><label class="block text-sm font-medium">Descrição<input id="sim-description" required placeholder="Ex.: Notebook" class="mt-1.5 w-full rounded-xl border border-gray-200 px-4 py-3"></label><div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-1"><label class="text-sm font-medium">Valor da compra<input id="sim-value" type="number" min="0.01" step="0.01" required class="mt-1.5 w-full rounded-xl border border-gray-200 px-4 py-3"></label><label class="text-sm font-medium">Data prevista<input id="sim-date" type="date" required value="${todayIso()}" class="mt-1.5 w-full rounded-xl border border-gray-200 px-4 py-3"></label><label class="text-sm font-medium">Forma de pagamento<select id="sim-method" class="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-4 py-3"><option value="cartao">Cartão de crédito</option><option value="pix">Pix</option><option value="debito">Débito</option><option value="dinheiro">Dinheiro</option></select></label><label id="sim-card-wrap" class="text-sm font-medium">Cartão<select id="sim-card" class="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-4 py-3">${state.cards.length?state.cards.map(card=>`<option value="${card.id}">${escapeHtml(card.name)}</option>`).join(''):'<option value="">Cadastre um cartão</option>'}</select></label><label id="sim-installments-wrap" class="text-sm font-medium">Parcelas<input id="sim-installments" type="number" min="1" max="48" value="1" class="mt-1.5 w-full rounded-xl border border-gray-200 px-4 py-3"></label></div><button class="w-full rounded-xl bg-ink px-5 py-3 font-semibold text-white">Salvar como compra futura</button></form><div><div id="simulator-results"></div><section class="mt-6 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm"><h2 class="font-bold">Compras futuras salvas</h2><div id="future-purchases-list" class="mt-3 divide-y divide-gray-100"></div></section></div></div>`;
+    const update=()=>{toggleSimulatorFields();renderSimulatorResults();};
+    ['sim-value','sim-date','sim-method','sim-card','sim-installments'].forEach(id=>$(id).addEventListener(id==='sim-method'||id==='sim-card'?'change':'input',update));
+    $('simulator-form').onsubmit=saveFuturePurchase;update();renderFuturePurchases();renderIcons();
+}
+
+function toggleSimulatorFields(){const card=$('sim-method').value==='cartao';$('sim-card-wrap').classList.toggle('hidden',!card);$('sim-installments-wrap').classList.toggle('hidden',!card);}
+function renderSimulatorResults(){const draft=simulatorDraft(),projection=projectionFor(draft),impact=simulatorImpact(draft),first=draft.charges[0]?.date,last=draft.charges.at(-1)?.date;$('simulator-results').innerHTML=`<div class="grid gap-3 sm:grid-cols-2 2xl:grid-cols-4"><div class="summary-card rounded-2xl bg-gradient-to-br from-sage-50 to-emerald-50 p-4"><span class="summary-label text-xs text-gray-500">Valor da parcela</span><strong class="summary-value mt-1 block text-xl">${money(draft.portion)}</strong></div><div class="summary-card rounded-2xl bg-gradient-to-br from-slate-100 to-gray-50 p-4"><span class="summary-label text-xs text-gray-500">Primeira fatura</span><strong class="summary-value mt-1 block text-lg">${formatDate(first)}</strong></div><div class="summary-card rounded-2xl bg-gradient-to-br from-slate-100 to-gray-50 p-4"><span class="summary-label text-xs text-gray-500">Última fatura</span><strong class="summary-value mt-1 block text-lg">${formatDate(last)}</strong></div><div class="rounded-2xl p-4 ${impact.tone}"><span class="text-xs opacity-75">Impacto na renda</span><strong class="mt-1 block text-lg">${impact.label}</strong><span class="text-xs">${impact.percent===null?'Cadastre seu salário':`${impact.percent.toFixed(1)}% no mês mais comprometido`}</span></div></div><section class="mt-6 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm"><div class="border-b border-gray-100 p-5"><h2 class="font-bold">Saldo projetado — próximos seis meses</h2><p class="mt-1 text-xs text-gray-400">Receitas previstas menos despesas atuais e esta simulação.</p></div><div class="overflow-x-auto"><table class="w-full min-w-[620px] text-left text-sm"><thead class="bg-gray-50 text-xs text-gray-500"><tr><th class="px-5 py-3">Mês</th><th class="px-5 py-3">Receitas</th><th class="px-5 py-3">Despesas</th><th class="px-5 py-3">Nova compra</th><th class="px-5 py-3">Saldo</th></tr></thead><tbody class="divide-y divide-gray-100">${projection.map(row=>`<tr><td class="px-5 py-3 font-semibold">${MONTHS[Number(row.key.slice(5))-1]} ${row.key.slice(0,4)}</td><td class="px-5 py-3 text-emerald-600">${money(row.income)}</td><td class="px-5 py-3">${money(row.expenses)}</td><td class="px-5 py-3 text-amber-600">${money(row.simulated)}</td><td class="px-5 py-3 font-bold ${row.balance<0?'text-red-500':'text-sage-700'}">${money(row.balance)}</td></tr>`).join('')}</tbody></table></div></section>`;}
+
+function saveFuturePurchase(event){event.preventDefault();const draft=simulatorDraft();if(!draft.value)return showToast('Informe o valor da compra.');if(draft.method==='cartao'&&!draft.cardId)return showToast('Cadastre e selecione um cartão.');state.futurePurchases.push({id:uid('future'),...draft,charges:undefined,status:'planned',createdAt:new Date().toISOString()});saveState();showToast('Compra futura salva.');renderSimulator();}
+function renderFuturePurchases(){const root=$('future-purchases-list');if(!root)return;root.innerHTML=state.futurePurchases.length?state.futurePurchases.map(item=>`<div class="flex flex-wrap items-center gap-3 py-3"><div class="min-w-0 flex-1"><strong class="block truncate text-sm">${escapeHtml(item.description)}</strong><span class="text-xs text-gray-400">${formatDate(item.date)} · ${item.method==='cartao'?`${item.installments}x em ${escapeHtml(item.cardName)}`:item.method}</span></div><strong>${money(item.value)}</strong><button data-future-action="convert" data-id="${item.id}" class="rounded-lg bg-ink px-3 py-2 text-xs font-semibold text-white">Converter em real</button><button data-future-action="delete" data-id="${item.id}" class="rounded-lg px-3 py-2 text-xs font-semibold text-red-500">Excluir</button></div>`).join(''):empty('Nenhuma compra futura salva.');document.querySelectorAll('[data-future-action]').forEach(button=>button.onclick=()=>handleFuturePurchase(button.dataset.futureAction,button.dataset.id));}
+function handleFuturePurchase(action,id){const item=state.futurePurchases.find(entry=>entry.id===id);if(!item)return;if(action==='delete'){state.futurePurchases=state.futurePurchases.filter(entry=>entry.id!==id);saveState();showToast('Compra futura excluída.');renderFuturePurchases();return;}const group=uid('group');if(item.method==='cartao'){const card=state.cards.find(card=>String(card.id)===String(item.cardId));if(!card)return showToast('O cartão desta simulação não existe mais.');for(let i=0;i<item.installments;i++)state.records.push({id:uid('purchase'),parent_id:group,purchaseGroupId:group,purchase_type:item.installments>1?'installment':'single',tipo:'cartao',cardId:card.id,cartao_nome:card.name,descricao:item.description,valor_total:item.value,valor_parcela:item.value/item.installments,quantidade_parcelas:item.installments,parcela_atual:i+1,data:addMonths(item.date,i),categoria:'Outros',status_pagamento:false});}else state.records.push({id:uid('expense'),parent_id:group,tipo:'padrao',descricao:item.description,valor:item.value,data:item.date,categoria:'Outros',ciclo:'pagamento',status_pagamento:false});state.futurePurchases=state.futurePurchases.filter(entry=>entry.id!==id);saveState();showToast('Compra convertida em lançamento real.');navigate(item.method==='cartao'?'cards':'home');}
+
+function renderAll() { if(currentView==='home')renderHome();if(currentView==='cards')renderCards();if(currentView==='goals')renderGoals();if(currentView==='simulator')renderSimulator();if(currentView==='settings')fillSettings();renderIcons(); }
 function showToast(message) { const toast=document.createElement('div');toast.className='rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-gray-700 shadow-lg';toast.textContent=message;$('toast-root').appendChild(toast);setTimeout(()=>toast.remove(),3200); }
 
 document.addEventListener('DOMContentLoaded',()=>{applyTheme();setupAuthEvents();setupRecoveryFlow();initAuth();});
