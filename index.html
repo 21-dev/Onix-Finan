@@ -38,9 +38,14 @@
         .dark input, .dark select, .dark textarea { color: #edf2ef; background: #171c19 !important; border-color: #38423d !important; color-scheme: dark; }
         .dark .shadow-sm { box-shadow: 0 1px 2px rgb(0 0 0 / .25); }
         #bottom-nav { padding-bottom: max(.5rem, env(safe-area-inset-bottom)); }
+        #floating-month-nav { right: 1.5rem; bottom: 1.5rem; }
         button, input, select { touch-action: manipulation; }
+        @media (max-width: 1023px) {
+            #floating-month-nav { right: auto; bottom: calc(5.25rem + env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); }
+        }
         @media (max-width: 639px) {
             html { overflow-x: hidden; }
+            #app-shell.has-floating-month-nav main { padding-bottom: 10.5rem; }
             input, select, textarea { font-size: 16px !important; }
             .mobile-action { min-height: 44px; }
             .mobile-form-submit { width: 100%; min-height: 48px; }
@@ -55,6 +60,11 @@
             #view-home .max-h-72 > .flex.items-center > .flex.gap-1,
             #view-cards .max-h-56 > .flex.items-center > .flex.gap-1 { width: 100%; justify-content: flex-end; }
             #view-home [data-confirm-action], #view-cards [data-confirm-action] { min-width: 44px; min-height: 44px; display: inline-grid; place-items: center; }
+            #view-simulator { min-width: 0; }
+            #view-simulator h1 { font-size: 1.35rem; line-height: 1.75rem; }
+            #view-simulator .simulator-panel { padding: 1rem; }
+            #view-simulator .simulator-summary-value { overflow-wrap: anywhere; }
+            #view-simulator [data-future-action] { min-height: 44px; }
         }
     </style>
 </head>
@@ -130,9 +140,15 @@
             </div>
         </main>
 
+        <div id="floating-month-nav" class="fixed z-30 hidden max-w-[calc(100%-1.5rem)] items-center gap-1 rounded-2xl border border-gray-200 bg-white/95 p-1.5 shadow-xl backdrop-blur" role="group" aria-label="Navegação de mês">
+            <button id="floating-month-prev" type="button" class="grid h-11 w-11 shrink-0 place-items-center rounded-xl text-gray-500 hover:bg-gray-100" aria-label="Mês anterior"><i data-lucide="chevron-left" class="h-5 w-5"></i></button>
+            <label for="floating-month-input" class="sr-only">Selecionar mês</label>
+            <input id="floating-month-input" type="month" class="h-11 min-w-0 w-[9.5rem] rounded-xl border-0 bg-transparent px-2 text-center text-sm font-bold outline-none focus:ring-2 focus:ring-sage-500" aria-label="Selecionar mês">
+            <button id="floating-month-next" type="button" class="grid h-11 w-11 shrink-0 place-items-center rounded-xl text-gray-500 hover:bg-gray-100" aria-label="Próximo mês"><i data-lucide="chevron-right" class="h-5 w-5"></i></button>
+        </div>
         <nav id="bottom-nav" class="fixed inset-x-0 bottom-0 z-40 grid grid-cols-6 border-t border-gray-200 bg-white/95 px-1 py-2 backdrop-blur lg:hidden"></nav>
     </div>
 
-    <script src="app.js?v=20260716-spa"></script>
+    <script src="app.js?v=20260717-floating-month-only"></script>
 </body>
 </html>
