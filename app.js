@@ -19,7 +19,16 @@ const APP_ROUTES = new Set(NAV_ITEMS.map(item=>item.id));
 
 let supabaseClient = null;
 let syncTimer = null;
-let cloudSyncErrorShown = false;
+let cloudCheckTimer = null;
+let cloudRevision = 0;
+let syncInProgress = false;
+let syncPending = false;
+let hasLocalChanges = false;
+let syncConflict = null;
+let syncStatus = 'local';
+let localChangeVersion = 0;
+let syncGeneration = 0;
+let syncModalReturnFocus = null;
 let currentView = 'home';
 let currentRecordTab = 'expense';
 let editingRecordId = null;
@@ -120,49 +129,254 @@ function normalizeState(payload = {}) {
 
 function userStorageKey() { return `onix_finance_v3_${user?.id || 'local'}`; }
 function legacyKey(prefix) { return `${prefix}_${user?.id || 'anon'}`; }
+function syncMetaStorageKey() { return `onix_finance_sync_meta_${user?.id || 'anon'}`; }
+
+function safeJsonParse(value, fallback) {
+    if (!value) return fallback;
+    try { return JSON.parse(value); }
+    catch (error) { console.warn('Dados locais inválidos foram ignorados.', error); return fallback; }
+}
+
+function getDeviceId() {
+    const key='onix_finance_device_id', existing=localStorage.getItem(key);
+    if(existing)return existing;
+    let id;
+    if(globalThis.crypto?.randomUUID)id=crypto.randomUUID();
+    else if(globalThis.crypto?.getRandomValues){const bytes=new Uint8Array(16);crypto.getRandomValues(bytes);bytes[6]=(bytes[6]&15)|64;bytes[8]=(bytes[8]&63)|128;id=[...bytes].map((byte,index)=>`${[4,6,8,10].includes(index)?'-':''}${byte.toString(16).padStart(2,'0')}`).join('');}
+    else id=`device_${Date.now()}_${Math.random().toString(36).slice(2)}_${Math.random().toString(36).slice(2)}`;
+    localStorage.setItem(key,id);return id;
+}
+
+function getLocalSyncMeta() {
+    const saved=safeJsonParse(localStorage.getItem(syncMetaStorageKey()),{});
+    return {deviceId:getDeviceId(),dirty:false,baseRevision:0,lastCloudUpdate:null,lastAttempt:null,lastError:null,savedAt:null,...(saved&&typeof saved==='object'?saved:{}),baseRevision:Number(saved?.baseRevision)||0};
+}
+
+function saveLocalSyncMeta(changes={}) {
+    if(!user)return getLocalSyncMeta();
+    const next={...getLocalSyncMeta(),...changes,deviceId:getDeviceId()};next.baseRevision=Number(next.baseRevision)||0;
+    try{localStorage.setItem(syncMetaStorageKey(),JSON.stringify(next));}catch(error){console.warn('Não foi possível salvar os metadados de sincronização.',error);}
+    return next;
+}
+
+function markLocalStateDirty(savedAt=new Date().toISOString()) {
+    hasLocalChanges=true;localChangeVersion++;if(syncInProgress)syncPending=true;saveLocalSyncMeta({dirty:true,baseRevision:cloudRevision,savedAt,lastError:null});
+}
 
 function loadLocalState() {
     const modern = localStorage.getItem(userStorageKey());
-    if (modern) return normalizeState(JSON.parse(modern));
+    if (modern) return normalizeState(safeJsonParse(modern,{}));
     return normalizeState({
-        despesas: JSON.parse(localStorage.getItem(legacyKey('finances_data_v2')) || '[]'),
-        cartoes: JSON.parse(localStorage.getItem(legacyKey('finances_cards_v1')) || '[]'),
-        metas: JSON.parse(localStorage.getItem(legacyKey('finances_goals_v1')) || '{}'),
+        despesas: safeJsonParse(localStorage.getItem(legacyKey('finances_data_v2')),[]),
+        cartoes: safeJsonParse(localStorage.getItem(legacyKey('finances_cards_v1')),[]),
+        metas: safeJsonParse(localStorage.getItem(legacyKey('finances_goals_v1')),{}),
         usuario: user ? profileFromAuth(user) : {}
     });
 }
 
 function payload() { return { version:3, updatedAt:new Date().toISOString(), records:state.records, recurringTransactions:state.recurringTransactions, goalList:state.goalList, goalMovements:state.goalMovements, futurePurchases:state.futurePurchases, cards:state.cards, goals:state.goals, invoicePayments:state.invoicePayments, profile:state.profile }; }
-function saveState() {
-    localStorage.setItem(userStorageKey(), JSON.stringify(payload()));
-    clearTimeout(syncTimer);
-    syncTimer = setTimeout(syncCloud, 700);
+function saveState({scheduleSync=true,markDirty=true}={}) {
+    const savedAt=new Date().toISOString();
+    try{localStorage.setItem(userStorageKey(),JSON.stringify(payload()));}
+    catch(error){console.error('Falha ao salvar os dados neste dispositivo.',error);updateSyncStatus('error');showToast('Não foi possível salvar os dados neste dispositivo.');return false;}
+    if(markDirty)markLocalStateDirty(savedAt);else saveLocalSyncMeta({savedAt});
+    if(markDirty)updateSyncStatus(navigator.onLine?'local':'offline');
+    if(scheduleSync&&markDirty&&user&&!syncConflict){clearTimeout(syncTimer);syncTimer=setTimeout(syncCloud,700);}
+    return true;
 }
 
 async function loadState() {
-    state = loadLocalState();
+    state=loadLocalState();
+    const hasStoredState=localStorage.getItem(userStorageKey())!==null;
+    const hasStoredMeta=localStorage.getItem(syncMetaStorageKey())!==null;
+    const meta=getLocalSyncMeta();
+    cloudRevision=Number(meta.baseRevision)||0;hasLocalChanges=Boolean(meta.dirty);syncConflict=null;
+    const localBefore=JSON.stringify(state);
     try {
-        const { data, error } = await getClient().from(SUPABASE_TABLE).select('payload').eq('user_id', user.id).maybeSingle();
+        const client=getClient();if(!client)throw new Error('Cliente de sincronização indisponível.');
+        const {data,error}=await client.from(SUPABASE_TABLE).select('revision, updated_at, payload, last_device_id').eq('user_id',user.id).maybeSingle();
         if (error) throw error;
-        if (data?.payload) state = normalizeState(data.payload);
-    } catch (error) { console.warn('Supabase indisponível; usando armazenamento local.', error); showToast('Modo local ativado. A nuvem está indisponível.'); }
-    state.profile = { ...state.profile, ...profileFromAuth(user), invoiceCycle:state.profile.invoiceCycle || 'pagamento' };
-    ensureAutomaticIncome();
-    ensureRecurringCharges();
-    ensureGoalContributions();
-    saveState();
+        if(!data){
+            cloudRevision=0;hasLocalChanges=true;
+            state.profile={...state.profile,...profileFromAuth(user),invoiceCycle:state.profile.invoiceCycle||'pagamento'};
+            ensureAutomaticIncome();ensureRecurringCharges();ensureGoalContributions();
+            saveState({scheduleSync:false,markDirty:true});await syncCloud();return;
+        }
+        const serverRevision=Number(data.revision)||0;
+        const serverState=normalizeState(data.payload||{});
+        if(!hasStoredMeta&&hasStoredState&&JSON.stringify(state)!==JSON.stringify(serverState)){
+            hasLocalChanges=true;saveLocalSyncMeta({dirty:true,baseRevision:0});await handleSyncConflict(data);return;
+        }
+        if(!hasLocalChanges){
+            state=serverState;cloudRevision=serverRevision;
+            saveLocalSyncMeta({dirty:false,baseRevision:serverRevision,lastCloudUpdate:data.updated_at||null,lastError:null});
+        }else if((Number(meta.baseRevision)||0)===serverRevision)cloudRevision=serverRevision;
+        else{await handleSyncConflict(data);return;}
+        const beforeEnhancements=JSON.stringify(state);
+        state.profile={...state.profile,...profileFromAuth(user),invoiceCycle:state.profile.invoiceCycle||'pagamento'};
+        ensureAutomaticIncome();ensureRecurringCharges();ensureGoalContributions();
+        const enhanced=beforeEnhancements!==JSON.stringify(state);
+        saveState({scheduleSync:false,markDirty:hasLocalChanges||enhanced});
+        if(hasLocalChanges)await syncCloud();else updateSyncStatus('synced');
+    } catch (error) {
+        console.warn('Supabase indisponível; usando armazenamento local.',error);
+        state.profile={...state.profile,...profileFromAuth(user),invoiceCycle:state.profile.invoiceCycle||'pagamento'};
+        ensureAutomaticIncome();ensureRecurringCharges();ensureGoalContributions();
+        const changed=localBefore!==JSON.stringify(state);
+        saveState({scheduleSync:false,markDirty:hasLocalChanges||changed});
+        saveLocalSyncMeta({dirty:hasLocalChanges,lastAttempt:new Date().toISOString(),lastError:String(error?.message||error)});
+        updateSyncStatus(navigator.onLine?'error':'offline');
+    }
+}
+
+function normalizeSyncResult(data) {
+    const result=Array.isArray(data)?data[0]:data;
+    if(!result||typeof result!=='object'||typeof result.success!=='boolean'||typeof result.conflict!=='boolean'||!Number.isFinite(Number(result.revision))||!result.payload||typeof result.payload!=='object')throw new Error('Resposta de sincronização inválida.');
+    return {...result,revision:Number(result.revision),payload:normalizeState(result.payload||{})};
 }
 
 async function syncCloud() {
-    if (!user || !getClient()) return;
+    if(!user||!getClient()||!hasLocalChanges||syncConflict)return;
+    if(syncInProgress){syncPending=true;return;}
+    if(!navigator.onLine){updateSyncStatus('offline');return;}
+    syncInProgress=true;syncPending=false;updateSyncStatus('syncing');
+    const generation=syncGeneration;
+    const expectedRevision=cloudRevision,currentPayload=payload(),attemptedAt=new Date().toISOString(),attemptVersion=localChangeVersion;
+    saveLocalSyncMeta({lastAttempt:attemptedAt});
     try {
-        const { error } = await getClient().from(SUPABASE_TABLE).upsert({ user_id:user.id, payload:payload(), updated_at:new Date().toISOString() }, { onConflict:'user_id' });
+        const {data,error}=await getClient().rpc('sync_onix_finance_state',{p_payload:currentPayload,p_expected_revision:expectedRevision,p_device_id:getDeviceId()});
+        if(generation!==syncGeneration)return;
         if(error)throw error;
-        cloudSyncErrorShown=false;
+        const result=normalizeSyncResult(data);
+        if(result.conflict||!result.success){await handleSyncConflict({revision:result.revision,payload:result.payload,updated_at:result.updated_at,last_device_id:result.last_device_id});return;}
+        cloudRevision=result.revision;
+        const changedDuringSync=localChangeVersion!==attemptVersion;hasLocalChanges=changedDuringSync;
+        saveLocalSyncMeta({dirty:changedDuringSync,baseRevision:cloudRevision,lastCloudUpdate:result.updated_at||new Date().toISOString(),lastAttempt:attemptedAt,lastError:null});
+        updateSyncStatus(changedDuringSync?'local':'synced');
     } catch (error) {
-        console.warn('Falha ao sincronizar com o Supabase.', error);
-        if(!cloudSyncErrorShown){cloudSyncErrorShown=true;showToast('Não foi possível sincronizar com a nuvem. Os dados continuam salvos neste dispositivo.');}
+        if(generation!==syncGeneration)return;
+        console.warn('Falha ao sincronizar com o Supabase.',error);
+        hasLocalChanges=true;saveLocalSyncMeta({dirty:true,lastAttempt:attemptedAt,lastError:String(error?.message||error)});
+        updateSyncStatus(navigator.onLine?'error':'offline');
+    } finally {
+        if(generation===syncGeneration){syncInProgress=false;if(syncPending&&!syncConflict){syncPending=false;setTimeout(syncCloud,0);}}
     }
+}
+
+function createConflictBackup(serverState) {
+    if(!user)return null;
+    const createdAt=new Date().toISOString(),key=`onix_conflict_backup_${user.id}_${Date.now()}`;
+    const backup={createdAt,deviceId:getDeviceId(),details:{localRevision:Number(getLocalSyncMeta().baseRevision)||0,serverRevision:Number(serverState?.revision)||0,serverUpdatedAt:serverState?.updated_at||null},state:normalizeState(state)};
+    try{localStorage.setItem(key,JSON.stringify(backup));return key;}catch(error){console.error('Não foi possível criar o backup de conflito.',error);showToast('Atenção: não foi possível criar a cópia de segurança local.');return null;}
+}
+
+function listConflictBackups() {
+    if(!user)return [];
+    const prefix=`onix_conflict_backup_${user.id}_`,items=[];
+    for(let index=0;index<localStorage.length;index++){const key=localStorage.key(index);if(key?.startsWith(prefix)){const value=safeJsonParse(localStorage.getItem(key),null);if(value)items.push({key,...value});}}
+    return items.sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));
+}
+
+async function handleSyncConflict(serverState) {
+    const normalized={revision:Number(serverState?.revision)||0,payload:normalizeState(serverState?.payload||{}),updated_at:serverState?.updated_at||null,last_device_id:serverState?.last_device_id||null};
+    if(!syncConflict||syncConflict.revision!==normalized.revision)createConflictBackup(normalized);
+    syncConflict=normalized;hasLocalChanges=true;
+    saveLocalSyncMeta({dirty:true,lastError:'Conflito de sincronização'});
+    updateSyncStatus('conflict');openSyncConflictModal();
+}
+
+function updateSyncStatus(status) {
+    syncStatus=status;
+    const states={
+        syncing:{label:'Sincronizando...',icon:'refresh-cw',tone:'text-sage-700',spin:true},
+        synced:{label:'Dados sincronizados',icon:'cloud-check',tone:'text-emerald-600'},
+        local:{label:'Alterações salvas no dispositivo',icon:'monitor-smartphone',tone:'text-amber-600'},
+        offline:{label:'Modo offline',icon:'cloud-off',tone:'text-gray-500'},
+        error:{label:'Falha ao sincronizar',icon:'circle-x',tone:'text-red-500'},
+        conflict:{label:'Conflito de sincronização',icon:'triangle-alert',tone:'text-amber-600'}
+    },view=states[status]||states.local;
+    document.querySelectorAll('[data-sync-status]').forEach(root=>{const compact=Boolean(root.closest('header'));root.className=`flex min-w-0 items-center gap-2 text-xs font-semibold ${view.tone}`;root.innerHTML=`<i data-lucide="${view.icon}" class="h-4 w-4 shrink-0 ${view.spin?'animate-spin':''}"></i><span class="sync-status-label ${compact?'max-w-32 truncate':''}">${view.label}</span>`;});
+    document.querySelectorAll('[data-sync-status-button]').forEach(button=>{button.title=view.label;button.onclick=()=>{if(syncConflict)openSyncConflictModal();else if(status==='error'||status==='offline')syncCloud();};});
+    renderIcons();
+}
+
+function formatSyncDate(value) {
+    if(!value)return 'Não disponível';
+    const date=new Date(value);return Number.isNaN(date.getTime())?'Não disponível':new Intl.DateTimeFormat('pt-BR',{dateStyle:'short',timeStyle:'short'}).format(date);
+}
+
+function openSyncConflictModal() {
+    if(!syncConflict)return;
+    const modal=$('sync-conflict-modal'),meta=getLocalSyncMeta();if(!modal)return;
+    $('conflict-local-date').textContent=formatSyncDate(meta.savedAt);
+    $('conflict-cloud-date').textContent=formatSyncDate(syncConflict.updated_at);
+    $('conflict-local-revision').textContent=String(Number(meta.baseRevision)||0);
+    $('conflict-cloud-revision').textContent=String(syncConflict.revision);
+    $('conflict-device').textContent=syncConflict.last_device_id?`${String(syncConflict.last_device_id).slice(0,8)}…`:'Não disponível';
+    if(modal.classList.contains('hidden'))syncModalReturnFocus=document.activeElement;
+    modal.classList.remove('hidden');modal.classList.add('flex');modal.setAttribute('aria-hidden','false');
+    $('conflict-cancel').focus();
+}
+
+function closeSyncConflictModal() {
+    const modal=$('sync-conflict-modal');if(!modal)return;
+    const wasOpen=!modal.classList.contains('hidden');
+    modal.classList.add('hidden');modal.classList.remove('flex');modal.setAttribute('aria-hidden','true');
+    if(wasOpen&&syncModalReturnFocus?.isConnected)syncModalReturnFocus.focus();syncModalReturnFocus=null;
+}
+
+async function resolveConflictWithLocal() {
+    if(!syncConflict)return;
+    const latestRevision=syncConflict.revision;
+    cloudRevision=latestRevision;syncConflict=null;hasLocalChanges=true;
+    saveLocalSyncMeta({dirty:true,baseRevision:latestRevision,lastError:null});
+    saveState({scheduleSync:false,markDirty:true});closeSyncConflictModal();
+    await syncCloud();if(!syncConflict&&!hasLocalChanges)showToast('Dados deste dispositivo sincronizados.');
+}
+
+function resolveConflictWithCloud() {
+    if(!syncConflict)return;
+    const selected=syncConflict;
+    state=normalizeState(selected.payload);cloudRevision=selected.revision;syncConflict=null;hasLocalChanges=false;
+    saveLocalSyncMeta({dirty:false,baseRevision:cloudRevision,lastCloudUpdate:selected.updated_at||new Date().toISOString(),lastError:null});
+    saveState({scheduleSync:false,markDirty:false});closeSyncConflictModal();refreshCurrentView();updateSyncStatus('synced');showToast('Dados da nuvem carregados.');
+}
+
+async function checkForCloudUpdates() {
+    if(!user||!getClient()||!navigator.onLine||syncInProgress||syncConflict)return;
+    const generation=syncGeneration;
+    try{
+        const {data,error}=await getClient().from(SUPABASE_TABLE).select('revision, updated_at, payload, last_device_id').eq('user_id',user.id).maybeSingle();
+        if(generation!==syncGeneration)return;
+        if(error)throw error;if(!data){if(hasLocalChanges)await syncCloud();return;}
+        const serverRevision=Number(data.revision)||0;if(serverRevision<=cloudRevision)return;
+        if(hasLocalChanges){await handleSyncConflict(data);return;}
+        state=normalizeState(data.payload||{});cloudRevision=serverRevision;
+        const beforeEnhancements=JSON.stringify(state);
+        state.profile={...state.profile,...profileFromAuth(user),invoiceCycle:state.profile.invoiceCycle||'pagamento'};
+        ensureAutomaticIncome();ensureRecurringCharges();ensureGoalContributions();
+        const enhanced=beforeEnhancements!==JSON.stringify(state);
+        saveLocalSyncMeta({dirty:enhanced,baseRevision:serverRevision,lastCloudUpdate:data.updated_at||null,lastError:null});
+        saveState({scheduleSync:false,markDirty:enhanced});refreshCurrentView();
+        if(enhanced)await syncCloud();else updateSyncStatus('synced');
+    }catch(error){if(generation!==syncGeneration)return;console.warn('Falha ao verificar atualizações da nuvem.',error);saveLocalSyncMeta({lastAttempt:new Date().toISOString(),lastError:String(error?.message||error)});updateSyncStatus(navigator.onLine?'error':'offline');}
+}
+
+function startCloudUpdateChecks() {
+    clearInterval(cloudCheckTimer);cloudCheckTimer=setInterval(()=>{if(document.visibilityState==='visible')checkForCloudUpdates();},60000);
+}
+
+function resetSyncRuntime() {
+    clearTimeout(syncTimer);clearInterval(cloudCheckTimer);syncTimer=null;cloudCheckTimer=null;
+    syncGeneration++;cloudRevision=0;syncInProgress=false;syncPending=false;hasLocalChanges=false;syncConflict=null;syncStatus='local';localChangeVersion=0;closeSyncConflictModal();
+}
+
+function setupSyncEvents() {
+    window.addEventListener('online',()=>{if(!user)return;if(hasLocalChanges)syncCloud();else checkForCloudUpdates();});
+    window.addEventListener('offline',()=>{if(user)updateSyncStatus('offline');});
+    document.addEventListener('visibilitychange',()=>{if(user&&document.visibilityState==='visible'&&navigator.onLine)checkForCloudUpdates();});
+    $('conflict-keep-local').onclick=resolveConflictWithLocal;$('conflict-use-cloud').onclick=resolveConflictWithCloud;$('conflict-cancel').onclick=closeSyncConflictModal;
+    $('sync-conflict-modal').addEventListener('keydown',event=>{if(event.key==='Escape')closeSyncConflictModal();if(event.key==='Tab'){const focusable=[...event.currentTarget.querySelectorAll('button:not([disabled])')];if(!focusable.length)return;const first=focusable[0],last=focusable.at(-1);if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();}}});
 }
 
 function profileFromAuth(authUser) {
@@ -180,7 +394,14 @@ async function initAuth() {
 function hideScreen(id) { $(id).classList.add('hidden'); $(id).classList.remove('flex'); }
 function showAuth() { hideScreen('recovery-screen'); $('auth-screen').classList.remove('hidden'); $('auth-screen').classList.add('flex'); $('app-shell').classList.add('hidden'); renderIcons(); }
 function showRecovery() { recoveryMode=true; hideScreen('auth-screen'); $('app-shell').classList.add('hidden'); $('recovery-screen').classList.remove('hidden'); $('recovery-screen').classList.add('flex'); $('recovery-password').focus(); renderIcons(); }
-async function enterApp(authUser) { user = authUser; hideScreen('auth-screen'); hideScreen('recovery-screen'); $('app-shell').classList.remove('hidden'); await loadState();currentView=viewFromLocation();if(!appInitialized){setupApp();appInitialized=true;}else{renderNavigation();populateForms();navigate(currentView,false,true);} }
+async function enterApp(authUser) { resetSyncRuntime();user=authUser;hideScreen('auth-screen');hideScreen('recovery-screen');$('app-shell').classList.remove('hidden');await loadState();currentView=viewFromLocation();if(!appInitialized){setupApp();appInitialized=true;}else{refreshCurrentView();navigate(currentView,false,true);}startCloudUpdateChecks();const nextStatus=syncConflict?'conflict':syncStatus==='error'?'error':!navigator.onLine?'offline':hasLocalChanges?'local':'synced';updateSyncStatus(nextStatus); }
+
+async function logout() {
+    clearTimeout(syncTimer);
+    if(hasLocalChanges&&navigator.onLine&&!syncConflict)await syncCloud();
+    const client=getClient();if(client)await client.auth.signOut();
+    resetSyncRuntime();user=null;state=createDefaultState();showAuth();
+}
 
 function setupRecoveryFlow() {
     const client=getClient();
@@ -254,7 +475,7 @@ function bindStaticEvents() {
     $('mobile-menu-button').onclick=()=>$('mobile-menu').classList.toggle('hidden');
     $('theme-toggle').onclick=toggleTheme; $('mobile-theme-toggle').onclick=toggleTheme;
     $('floating-month-prev').onclick=()=>changeMonth(-1);$('floating-month-next').onclick=()=>changeMonth(1);$('floating-month-input').onchange=event=>selectMonth(event.target.value);
-    $('logout-button').onclick=async()=>{ await syncCloud(); await getClient().auth.signOut(); user=null; showAuth(); };
+    $('logout-button').onclick=logout;
     $('expense-method').onchange=toggleExpenseMethod;
     $('card-purchase-type').onchange=toggleCardPurchaseType;
     $('recurring-duration').onchange=toggleRecurringDuration;
@@ -544,8 +765,9 @@ function renderFuturePurchases(){const root=$('future-purchases-list');if(!root)
 function handleFuturePurchase(action,id){const item=state.futurePurchases.find(entry=>entry.id===id);if(!item)return;if(action==='delete'){state.futurePurchases=state.futurePurchases.filter(entry=>entry.id!==id);saveState();showToast('Compra futura excluída.');renderFuturePurchases();return;}const group=uid('group');if(item.method==='cartao'){const card=state.cards.find(card=>String(card.id)===String(item.cardId));if(!card)return showToast('O cartão desta simulação não existe mais.');for(let i=0;i<item.installments;i++)state.records.push({id:uid('purchase'),parent_id:group,purchaseGroupId:group,purchase_type:item.installments>1?'installment':'single',tipo:'cartao',cardId:card.id,cartao_nome:card.name,descricao:item.description,valor_total:item.value,valor_parcela:item.value/item.installments,quantidade_parcelas:item.installments,parcela_atual:i+1,data:addMonths(item.date,i),categoria:'Outros',status_pagamento:false});}else state.records.push({id:uid('expense'),parent_id:group,tipo:'padrao',descricao:item.description,valor:item.value,data:item.date,categoria:'Outros',ciclo:'pagamento',status_pagamento:false});state.futurePurchases=state.futurePurchases.filter(entry=>entry.id!==id);saveState();showToast('Compra convertida em lançamento real.');navigate(item.method==='cartao'?'cards':'home');}
 
 function renderAll() { if(currentView==='home')renderHome();if(currentView==='cards')renderCards();if(currentView==='goals')renderGoals();if(currentView==='simulator')renderSimulator();if(currentView==='settings')fillSettings();renderIcons(); }
+function refreshCurrentView() { renderNavigation();populateForms();$('sidebar-user').textContent=state.profile.name;renderAll();updateFloatingMonthNav();renderIcons(); }
 function showToast(message) { const toast=document.createElement('div');toast.className='rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-gray-700 shadow-lg';toast.textContent=message;$('toast-root').appendChild(toast);setTimeout(()=>toast.remove(),3200); }
 
 window.addEventListener('popstate',handleSpaHistory);
 window.addEventListener('hashchange',()=>{if(location.hash.startsWith('#/'))handleSpaHistory();});
-document.addEventListener('DOMContentLoaded',()=>{applyTheme();setupAuthEvents();setupRecoveryFlow();initAuth();});
+document.addEventListener('DOMContentLoaded',()=>{applyTheme();setupAuthEvents();setupRecoveryFlow();setupSyncEvents();initAuth();});
